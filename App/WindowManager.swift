@@ -65,8 +65,11 @@ final class WindowManager {
             let target = undoing ? history.undo(for: window, current: current) : history.redo(for: window, current: current)
             // The saved frame may be on another display, so fit it to its own screen.
             guard let target, let targetIndex = WindowLayout.screenIndex(for: target, among: screens) else { return }
-            if !didMove(window.setFrame(target, within: screens[targetIndex]), from: current) {
-                // The window did not move: the opposite call puts both stacks back as they were.
+            let applied = window.setFrame(target, within: screens[targetIndex])
+            let reached = applied.map { WindowLayout.isClose($0, target) } ?? false
+            // Keep the step when the window got there, even if it was already there
+            // (moved by hand). Otherwise the opposite call puts both stacks back.
+            if !reached, !didMove(applied, from: current) {
                 _ = undoing ? history.redo(for: window, current: target) : history.undo(for: window, current: target)
             }
         case .moveToNextDisplay, .moveToPreviousDisplay:
