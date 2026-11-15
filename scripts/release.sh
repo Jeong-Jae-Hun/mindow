@@ -72,7 +72,7 @@ if [ "$PHASE" = submit ]; then
     echo "dry run: ad-hoc signed $APP"
     exit 0
   fi
-  SIGNATURE=$(codesign -dv "$APP" 2>&1)
+  SIGNATURE=$(codesign -dv --verbose=2 "$APP" 2>&1)
   [[ "$SIGNATURE" == *"Authority=Developer ID Application"* ]] \
     || die "$APP is not signed with a Developer ID certificate"
 
