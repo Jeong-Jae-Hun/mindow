@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Public repo: CI never receives secrets. Signing and notarization run locally.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test MindowCore
+        run: swift test --package-path MindowCore
+      - name: Build app
+        run: >
+          xcodebuild -project Mindow.xcodeproj -scheme Mindow -configuration Debug
+          -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
