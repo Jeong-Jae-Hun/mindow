@@ -43,6 +43,17 @@ public enum WindowAction: String, CaseIterable, Sendable {
         }
     }
 
+    /// Whether a press can continue the cycle `previous` left: the same half or corner
+    /// steps through `WindowLayout.cycleFractions`, and either third action walks the cells.
+    public func continues(_ previous: WindowAction) -> Bool {
+        if isThird { return previous.isThird }
+        return cyclesOnRepeat && self == previous
+    }
+
+    public var isThird: Bool {
+        self == .moveToNextThird || self == .moveToPreviousThird
+    }
+
     /// Pressing the same shortcut again steps through `WindowLayout.cycleFractions`.
     public var cyclesOnRepeat: Bool {
         switch self {

@@ -2,6 +2,24 @@ import AppKit
 import ApplicationServices
 import MindowCore
 
+// ─── Accessibility ───
+
+private let positionAttribute = AXAttribute<CGPoint>(name: kAXPositionAttribute, type: .cgPoint)
+private let sizeAttribute = AXAttribute<CGSize>(name: kAXSizeAttribute, type: .cgSize)
+
+private struct AXAttribute<Value: BitwiseCopyable> {
+    let name: String
+    let type: AXValueType
+}
+
+/// Compares frames instead of AX error codes: a write can half succeed, and only
+/// a real change belongs in the history.
+private func didMove(_ applied: CGRect?, from current: CGRect) -> Bool {
+    applied.map { !WindowLayout.isClose($0, current) } ?? false
+}
+
+// ─── Window manager ───
+
 /// Moves the focused window through the Accessibility API. All geometry is in
 /// AX coordinates; `MindowCore` does the math.
 @MainActor
@@ -35,8 +53,8 @@ final class WindowManager {
         guard let index = WindowLayout.screenIndex(for: current, among: screens) else { return }
         let screen = screens[index]
 
-        // Cycling continues only on the same window with nothing else in between.
-        if cycleWindow != window || !action.cyclesOnRepeat {
+        // A cycle continues only on the same window with nothing else in between.
+        if cycleWindow != window || !(action.cyclesOnRepeat || action.isThird) {
             cycle = RepeatCycle()
         }
         cycleWindow = window
@@ -47,7 +65,7 @@ final class WindowManager {
             let target = undoing ? history.undo(for: window, current: current) : history.redo(for: window, current: current)
             // The saved frame may be on another display, so fit it to its own screen.
             guard let target, let targetIndex = WindowLayout.screenIndex(for: target, among: screens) else { return }
-            if window.setFrame(target, within: screens[targetIndex]) == nil {
+            if !didMove(window.setFrame(target, within: screens[targetIndex]), from: current) {
                 // The window did not move: the opposite call puts both stacks back as they were.
                 _ = undoing ? history.redo(for: window, current: target) : history.undo(for: window, current: target)
             }
@@ -55,32 +73,23 @@ final class WindowManager {
             guard screens.count > 1 else { return }
             let offset = action == .moveToNextDisplay ? 1 : -1
             let to = screens[(index + offset + screens.count) % screens.count]
-            if window.setFrame(WindowLayout.moveProportionally(current, between: (screen, to)), within: to) != nil {
+            if didMove(window.setFrame(WindowLayout.moveProportionally(current, between: (screen, to)), within: to), from: current) {
                 history.record(current, for: window)
             }
         default:
-            let cycling = UserDefaults.standard.bool(forKey: Preferences.cycleOnRepeat)
-            let step = cycling ? cycle.begin(action, current: current) : 0
-            guard let target = WindowLayout.frame(for: action, in: .init(window: current, screen: screen, step: step)),
-                  let applied = window.setFrame(target, within: screen)
+            // The toggle covers size cycling; thirds always walk their cells.
+            let remembered = action.isThird || UserDefaults.standard.bool(forKey: Preferences.cycleOnRepeat)
+            let previous = remembered ? cycle.previousStep(for: action, current: current) : nil
+            guard let target = WindowLayout.placement(for: action, in: .init(window: current, screen: screen, previousStep: previous)),
+                  let applied = window.setFrame(target.frame, within: screen)
             else { return }
-            history.record(current, for: window)
-            if cycling {
-                cycle.finish(applied: applied)
+            if didMove(applied, from: current) {
+                history.record(current, for: window)
             }
+            cycle.record(action, placement: .init(frame: applied, step: target.step))
         }
     }
 }
-
-// ─── Accessibility ───
-
-private struct AXAttribute<Value: BitwiseCopyable> {
-    let name: String
-    let type: AXValueType
-}
-
-private let positionAttribute = AXAttribute<CGPoint>(name: kAXPositionAttribute, type: .cgPoint)
-private let sizeAttribute = AXAttribute<CGSize>(name: kAXSizeAttribute, type: .cgSize)
 
 private extension AXUIElement {
     var frame: CGRect? {
@@ -90,11 +99,11 @@ private extension AXUIElement {
 
     /// Sets size, position, then size again (the allowed size can change on another
     /// display) and reads the frame back. Apps with a minimum size may keep a larger
-    /// one, so the result is shifted back on screen. Returns nil when the app
-    /// refused the move.
+    /// one, so the result is shifted back on screen. Returns the frame the window
+    /// actually has, or nil when it cannot be read.
     func setFrame(_ target: CGRect, within screen: CGRect) -> CGRect? {
         set(sizeAttribute, to: target.size)
-        guard set(positionAttribute, to: target.origin) else { return nil }
+        set(positionAttribute, to: target.origin)
         set(sizeAttribute, to: target.size)
         guard let applied = frame else { return nil }
         let fitted = WindowLayout.fitInside(applied, screen: screen)
