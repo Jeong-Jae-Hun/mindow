@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Keeps SHA-pinned actions current; review each bump against the release notes.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

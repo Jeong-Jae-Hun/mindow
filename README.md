@@ -12,13 +12,13 @@ cycle sizes when the same shortcut is pressed again, and import an existing Spec
 Requires Xcode 16 or later on macOS 14+.
 
 ```sh
-swift test --package-path MindowCore   # window math and parsing
+swift test --package-path MindowCore   # window geometry
 xcodegen generate                      # after editing project.yml
 xcodebuild -project Mindow.xcodeproj -scheme Mindow build
 ```
 
-Window geometry and shortcut parsing live in `MindowCore` and are covered by tests.
-The app target only talks to the Accessibility API and draws UI.
+Pure logic (window geometry now, shortcut parsing later) lives in `MindowCore` and is covered by tests.
+The app target is a menu bar shell for now; Accessibility calls and settings UI come next.
 
 ## License
 
