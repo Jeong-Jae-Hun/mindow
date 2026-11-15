@@ -7,6 +7,6 @@ let package = Package(
     products: [.library(name: "MindowCore", targets: ["MindowCore"])],
     targets: [
         .target(name: "MindowCore"),
-        .testTarget(name: "MindowCoreTests", dependencies: ["MindowCore"]),
+        .testTarget(name: "MindowCoreTests", dependencies: ["MindowCore"], resources: [.copy("Fixtures")]),
     ]
 )

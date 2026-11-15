@@ -5,6 +5,9 @@ options:
 packages:
   MindowCore:
     path: MindowCore
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    exactVersion: 3.1.0
 targets:
   Mindow:
     type: application
@@ -12,6 +15,7 @@ targets:
     sources: [App]
     dependencies:
       - package: MindowCore
+      - package: KeyboardShortcuts
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.jeong-jae-hun.mindow
