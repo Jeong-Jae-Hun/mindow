@@ -15,6 +15,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !AXIsProcessTrusted() || SpectacleShortcuts.isSpectacleRunning {
             settings.show()
         }
+        // Spectacle holds the same keys while it runs, so our registration fails.
+        // Register again once it quits.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
+        ) { notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard app?.bundleIdentifier == SpectacleShortcuts.bundleIdentifier else { return }
+            MainActor.assumeIsolated { Shortcuts.reregister() }
+        }
     }
 
     /// With the menu bar icon hidden, opening the app again is the only way back to settings.

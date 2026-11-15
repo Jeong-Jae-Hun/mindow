@@ -17,6 +17,12 @@ enum Shortcuts {
         }
     }
 
+    /// Registration that failed earlier is dropped, so enabling again retries it
+    /// without adding a second handler.
+    static func reregister() {
+        KeyboardShortcuts.enable(Array(names.values))
+    }
+
     static func apply(_ bindings: [WindowAction: KeyBinding]) {
         for (action, binding) in bindings {
             guard let name = names[action] else { continue }

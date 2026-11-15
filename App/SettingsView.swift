@@ -57,7 +57,19 @@ struct SettingsView: View {
                 Toggle("Cycle sizes when the same shortcut is pressed again", isOn: $cycleOnRepeat)
                 Toggle("Show icon in menu bar", isOn: $showMenuBarIcon)
                 Toggle("Launch at login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
+                    .onChange(of: launchAtLogin) { _, enabled in
+                        do {
+                            if enabled {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                            loginError = nil
+                        } catch {
+                            loginError = error.localizedDescription
+                            launchAtLogin = SMAppService.mainApp.status == .enabled
+                        }
+                    }
                 if let loginError {
                     Text(loginError).foregroundStyle(.red).font(.caption)
                 }
@@ -79,17 +91,4 @@ struct SettingsView: View {
         }
     }
 
-    private func setLaunchAtLogin(_ enabled: Bool) {
-        do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
-            }
-            loginError = nil
-        } catch {
-            loginError = error.localizedDescription
-            launchAtLogin = SMAppService.mainApp.status == .enabled
-        }
-    }
 }

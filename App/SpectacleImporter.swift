@@ -6,7 +6,14 @@ import UniformTypeIdentifiers
 @MainActor
 enum SpectacleImporter {
     static func run() {
-        guard let url = locateFile() else { return }
+        var url: URL? = FileManager.default.homeDirectoryForCurrentUser.appending(path: SpectacleShortcuts.defaultFilePath)
+        if let found = url, !FileManager.default.fileExists(atPath: found.path(percentEncoded: false)) {
+            let panel = NSOpenPanel()
+            panel.message = "Choose Spectacle's Shortcuts.json"
+            panel.allowedContentTypes = [.json]
+            url = panel.runModal() == .OK ? panel.url : nil
+        }
+        guard let url else { return }
         let result: SpectacleShortcuts.ImportResult
         do {
             result = try SpectacleShortcuts.parse(Data(contentsOf: url))
@@ -34,15 +41,6 @@ enum SpectacleImporter {
         UserDefaults.standard.set(Date.now.ISO8601Format(), forKey: Preferences.importedFromSpectacleAt)
     }
 
-    private static func locateFile() -> URL? {
-        let url = FileManager.default.homeDirectoryForCurrentUser.appending(path: SpectacleShortcuts.defaultFilePath)
-        if FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) { return url }
-
-        let panel = NSOpenPanel()
-        panel.message = "Choose Spectacle's Shortcuts.json"
-        panel.allowedContentTypes = [.json]
-        return panel.runModal() == .OK ? panel.url : nil
-    }
 
     private static func showError(_ message: String) {
         let alert = NSAlert()

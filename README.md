@@ -20,7 +20,7 @@ Mindow needs Accessibility access (System Settings > Privacy & Security > Access
 
 ## Development
 
-Requires Xcode 16 or later on macOS 14+.
+Requires Xcode 26 or later (Swift 6.2, needed by KeyboardShortcuts). The app runs on macOS 14+.
 
 ```sh
 swift test --package-path MindowCore   # window math, cycling, history, import parsing

@@ -16,6 +16,17 @@ struct MoveHistoryTests {
         #expect(history.redo(for: 1, current: b) == nil)
     }
 
+    @Test("적용에 실패한 되돌리기는 반대 호출로 두 기록을 원래대로 돌린다")
+    func 실패복구() {
+        var history = MoveHistory<Int>()
+        history.record(a, for: 1)
+        let target = history.undo(for: 1, current: b)
+        #expect(target == a)
+        _ = history.redo(for: 1, current: a)
+        #expect(history.undo(for: 1, current: b) == a)
+        #expect(history.undo(for: 1, current: a) == nil)
+    }
+
     @Test("창마다 기록이 따로 쌓인다")
     func 창별() {
         var history = MoveHistory<Int>()

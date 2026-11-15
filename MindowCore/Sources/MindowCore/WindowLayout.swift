@@ -8,7 +8,7 @@ public enum WindowLayout {
         public var screen: CGRect
         public var step: Int
 
-        public init(window: CGRect, screen: CGRect, step: Int = 0) {
+        public init(window: CGRect, screen: CGRect, step: Int) {
             self.window = window
             self.screen = screen
             self.step = step
@@ -39,7 +39,13 @@ public enum WindowLayout {
         case .moveToNextThird: third(after: context.window, in: s, offset: 1)
         case .moveToPreviousThird: third(after: context.window, in: s, offset: -1)
         case .moveToFullscreen: s
-        case .moveToCenter: centered(context.window.size, in: s)
+        case .moveToCenter:
+            CGRect(
+                x: s.midX - min(context.window.width, s.width) / 2,
+                y: s.midY - min(context.window.height, s.height) / 2,
+                width: min(context.window.width, s.width),
+                height: min(context.window.height, s.height)
+            )
         case .makeLarger: resized(context.window, in: s, by: 1)
         case .makeSmaller: resized(context.window, in: s, by: -1)
         case .moveToNextDisplay, .moveToPreviousDisplay, .undoLastMove, .redoLastMove: nil
@@ -81,15 +87,18 @@ public enum WindowLayout {
 
     /// Apps round or clamp the frame they accept, so equality uses a small tolerance.
     public static func isClose(_ a: CGRect, _ b: CGRect) -> Bool {
-        let t: CGFloat = 2
-        return abs(a.minX - b.minX) <= t && abs(a.minY - b.minY) <= t
-            && abs(a.width - b.width) <= t && abs(a.height - b.height) <= t
+        abs(a.minX - b.minX) <= tolerance && abs(a.minY - b.minY) <= tolerance
+            && abs(a.width - b.width) <= tolerance && abs(a.height - b.height) <= tolerance
     }
+
+    static let tolerance: CGFloat = 2
 
     // ─── Private ───
 
-    /// Columns on a landscape screen, rows on a portrait one. A window that is
-    /// not on a third starts at the first (next) or last (previous) cell.
+    /// Columns on a landscape screen, rows on a portrait one. A window spanning the
+    /// full cross axis counts as sitting in the cell it overlaps most, which also
+    /// covers apps whose minimum size made the cell wider. Any other window starts
+    /// at the first (next) or last (previous) cell.
     private static func third(after window: CGRect, in s: CGRect, offset: Int) -> CGRect {
         let landscape = s.width >= s.height
         let cells = (0..<3).map { i -> CGRect in
@@ -97,17 +106,19 @@ public enum WindowLayout {
                 ? CGRect(x: s.minX + s.width * CGFloat(i) / 3, y: s.minY, width: s.width / 3, height: s.height)
                 : CGRect(x: s.minX, y: s.minY + s.height * CGFloat(i) / 3, width: s.width, height: s.height / 3)
         }
-        guard let current = cells.firstIndex(where: { isClose(rounded($0), window) }) else {
+        let spansCrossAxis = landscape
+            ? abs(window.minY - s.minY) <= tolerance && abs(window.height - s.height) <= tolerance
+            : abs(window.minX - s.minX) <= tolerance && abs(window.width - s.width) <= tolerance
+        let overlaps = cells.map { cell -> CGFloat in
+            let i = cell.intersection(window)
+            return i.isNull ? 0 : i.width * i.height
+        }
+        guard spansCrossAxis, let current = overlaps.indices.max(by: { overlaps[$0] < overlaps[$1] }), overlaps[current] > 0 else {
             return offset > 0 ? cells[0] : cells[2]
         }
         return cells[(current + offset + 3) % 3]
     }
 
-    private static func centered(_ size: CGSize, in s: CGRect) -> CGRect {
-        let w = min(size.width, s.width)
-        let h = min(size.height, s.height)
-        return CGRect(x: s.midX - w / 2, y: s.midY - h / 2, width: w, height: h)
-    }
 
     private static func resized(_ window: CGRect, in s: CGRect, by direction: CGFloat) -> CGRect {
         let dx = s.width * resizeShare * direction

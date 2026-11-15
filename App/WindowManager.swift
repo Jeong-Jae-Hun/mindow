@@ -7,103 +7,119 @@ import MindowCore
 @MainActor
 final class WindowManager {
     private var cycle = RepeatCycle()
+    private var cycleWindow: AXUIElement?
     private var history = MoveHistory<AXUIElement>()
 
     func perform(_ action: WindowAction) {
-        guard AXIsProcessTrusted(), let window = Self.focusedWindow(), let current = Self.frame(of: window) else {
+        var focused: CFTypeRef?
+        guard AXIsProcessTrusted(),
+              let app = NSWorkspace.shared.frontmostApplication,
+              AXUIElementCopyAttributeValue(
+                  AXUIElementCreateApplication(app.processIdentifier),
+                  kAXFocusedWindowAttribute as CFString,
+                  &focused
+              ) == .success,
+              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
+        else {
             NSSound.beep()
             return
         }
-        let screens = Self.visibleScreens()
+        let window = unsafeDowncast(focused, to: AXUIElement.self)
+        guard let current = window.frame, let primaryHeight = NSScreen.screens.first?.frame.height else { return }
+
+        // Visible frames (without menu bar and Dock), left to right so Next/Previous
+        // Display walk the physical arrangement.
+        let screens = NSScreen.screens
+            .map { ScreenGeometry.flipped($0.visibleFrame, primaryScreenHeight: primaryHeight) }
+            .sorted { ($0.minX, $0.minY) < ($1.minX, $1.minY) }
         guard let index = WindowLayout.screenIndex(for: current, among: screens) else { return }
         let screen = screens[index]
 
+        // Cycling continues only on the same window with nothing else in between.
+        if cycleWindow != window || !action.cyclesOnRepeat {
+            cycle = RepeatCycle()
+        }
+        cycleWindow = window
+
         switch action {
         case .undoLastMove, .redoLastMove:
-            let target = action == .undoLastMove
-                ? history.undo(for: window, current: current)
-                : history.redo(for: window, current: current)
+            let undoing = action == .undoLastMove
+            let target = undoing ? history.undo(for: window, current: current) : history.redo(for: window, current: current)
             // The saved frame may be on another display, so fit it to its own screen.
             guard let target, let targetIndex = WindowLayout.screenIndex(for: target, among: screens) else { return }
-            _ = Self.setFrame(target, of: window, within: screens[targetIndex])
-            return
+            if window.setFrame(target, within: screens[targetIndex]) == nil {
+                // The window did not move: the opposite call puts both stacks back as they were.
+                _ = undoing ? history.redo(for: window, current: target) : history.undo(for: window, current: target)
+            }
         case .moveToNextDisplay, .moveToPreviousDisplay:
             guard screens.count > 1 else { return }
             let offset = action == .moveToNextDisplay ? 1 : -1
             let to = screens[(index + offset + screens.count) % screens.count]
-            history.record(current, for: window)
-            _ = Self.setFrame(WindowLayout.moveProportionally(current, between: (screen, to)), of: window, within: to)
-            return
+            if window.setFrame(WindowLayout.moveProportionally(current, between: (screen, to)), within: to) != nil {
+                history.record(current, for: window)
+            }
         default:
-            break
+            let cycling = UserDefaults.standard.bool(forKey: Preferences.cycleOnRepeat)
+            let step = cycling ? cycle.begin(action, current: current) : 0
+            guard let target = WindowLayout.frame(for: action, in: .init(window: current, screen: screen, step: step)),
+                  let applied = window.setFrame(target, within: screen)
+            else { return }
+            history.record(current, for: window)
+            if cycling {
+                cycle.finish(applied: applied)
+            }
         }
+    }
+}
 
-        let cycling = UserDefaults.standard.bool(forKey: Preferences.cycleOnRepeat)
-        let step = cycling ? cycle.begin(action, current: current) : 0
-        guard let target = WindowLayout.frame(for: action, in: .init(window: current, screen: screen, step: step)) else { return }
-        history.record(current, for: window)
-        if let applied = Self.setFrame(target, of: window, within: screen), cycling {
-            cycle.finish(applied: applied)
-        }
+// ─── Accessibility ───
+
+private struct AXAttribute<Value: BitwiseCopyable> {
+    let name: String
+    let type: AXValueType
+}
+
+private let positionAttribute = AXAttribute<CGPoint>(name: kAXPositionAttribute, type: .cgPoint)
+private let sizeAttribute = AXAttribute<CGSize>(name: kAXSizeAttribute, type: .cgSize)
+
+private extension AXUIElement {
+    var frame: CGRect? {
+        guard let origin = value(positionAttribute), let size = value(sizeAttribute) else { return nil }
+        return CGRect(origin: origin, size: size)
     }
 
-    // ─── Accessibility ───
-
-    private static func focusedWindow() -> AXUIElement? {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
-        let element = AXUIElementCreateApplication(app.processIdentifier)
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXFocusedWindowAttribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXUIElementGetTypeID()
-        else { return nil }
-        return unsafeDowncast(value, to: AXUIElement.self)
-    }
-
-    private static func frame(of window: AXUIElement) -> CGRect? {
-        var position = CGPoint.zero
-        var size = CGSize.zero
-        guard read(kAXPositionAttribute, of: window, type: .cgPoint, into: &position),
-              read(kAXSizeAttribute, of: window, type: .cgSize, into: &size)
-        else { return nil }
-        return CGRect(origin: position, size: size)
-    }
-
-    /// Sets size, then position, then reads the frame back. Apps with a minimum
-    /// size may refuse the requested size, so the result is shifted back on screen.
-    private static func setFrame(_ target: CGRect, of window: AXUIElement, within screen: CGRect) -> CGRect? {
-        write(target.size, to: kAXSizeAttribute, of: window, type: .cgSize)
-        write(target.origin, to: kAXPositionAttribute, of: window, type: .cgPoint)
-        // Moving to another display can change the allowed size, so set it once more.
-        write(target.size, to: kAXSizeAttribute, of: window, type: .cgSize)
-        guard let applied = frame(of: window) else { return nil }
+    /// Sets size, position, then size again (the allowed size can change on another
+    /// display) and reads the frame back. Apps with a minimum size may keep a larger
+    /// one, so the result is shifted back on screen. Returns nil when the app
+    /// refused the move.
+    func setFrame(_ target: CGRect, within screen: CGRect) -> CGRect? {
+        set(sizeAttribute, to: target.size)
+        guard set(positionAttribute, to: target.origin) else { return nil }
+        set(sizeAttribute, to: target.size)
+        guard let applied = frame else { return nil }
         let fitted = WindowLayout.fitInside(applied, screen: screen)
         guard fitted.origin != applied.origin else { return applied }
-        write(fitted.origin, to: kAXPositionAttribute, of: window, type: .cgPoint)
-        return frame(of: window)
+        set(positionAttribute, to: fitted.origin)
+        return frame
     }
 
-    private static func read<T: BitwiseCopyable>(_ attribute: String, of window: AXUIElement, type: AXValueType, into out: inout T) -> Bool {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, attribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXValueGetTypeID()
-        else { return false }
-        return AXValueGetValue(unsafeDowncast(value, to: AXValue.self), type, &out)
+    func value<Value>(_ attribute: AXAttribute<Value>) -> Value? {
+        var raw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(self, attribute.name as CFString, &raw) == .success,
+              let raw, CFGetTypeID(raw) == AXValueGetTypeID()
+        else { return nil }
+        return withUnsafeTemporaryAllocation(of: Value.self, capacity: 1) { buffer in
+            guard let base = buffer.baseAddress,
+                  AXValueGetValue(unsafeDowncast(raw, to: AXValue.self), attribute.type, base)
+            else { return nil }
+            return base.pointee
+        }
     }
 
-    private static func write<T: BitwiseCopyable>(_ value: T, to attribute: String, of window: AXUIElement, type: AXValueType) {
+    @discardableResult
+    func set<Value>(_ attribute: AXAttribute<Value>, to value: Value) -> Bool {
         var value = value
-        guard let axValue = AXValueCreate(type, &value) else { return }
-        AXUIElementSetAttributeValue(window, attribute as CFString, axValue)
-    }
-
-    // ─── Screens ───
-
-    /// Visible frames (without menu bar and Dock) in AX coordinates, ordered left to right
-    /// so Next/Previous Display walk the physical arrangement.
-    private static func visibleScreens() -> [CGRect] {
-        guard let primaryHeight = NSScreen.screens.first?.frame.height else { return [] }
-        return NSScreen.screens
-            .map { ScreenGeometry.flipped($0.visibleFrame, primaryScreenHeight: primaryHeight) }
-            .sorted { ($0.minX, $0.minY) < ($1.minX, $1.minY) }
+        guard let axValue = AXValueCreate(attribute.type, &value) else { return false }
+        return AXUIElementSetAttributeValue(self, attribute.name as CFString, axValue) == .success
     }
 }
