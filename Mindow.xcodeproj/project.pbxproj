@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		24231B675AF137A2B69017EC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */; };
 		3EA23B80EA69BEBA459E9FE6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37649C61739B946CBB1A0836 /* SettingsView.swift */; };
 		60F42D4B23158C4AC25A2178 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 32C037F0CA73FEF8B83758B6 /* KeyboardShortcuts */; };
 		8F819657C961CCE3DF24B741 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */; };
@@ -23,6 +24,7 @@
 		51098E754D1E8632882E50C4 /* WindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowManager.swift; sourceTree = "<group>"; };
 		6727C2AF95919FB165B7C044 /* Shortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shortcuts.swift; sourceTree = "<group>"; };
 		932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectacleImporter.swift; sourceTree = "<group>"; };
+		9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B40545EDA75EEC02F3900FED /* MindowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindowApp.swift; sourceTree = "<group>"; };
 		EB3EA23FA447AF88C9C80B76 /* MindowCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MindowCore; path = MindowCore; sourceTree = SOURCE_ROOT; };
 		EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -61,6 +63,7 @@
 			isa = PBXGroup;
 			children = (
 				EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */,
+				9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */,
 				B40545EDA75EEC02F3900FED /* MindowApp.swift */,
 				37649C61739B946CBB1A0836 /* SettingsView.swift */,
 				6727C2AF95919FB165B7C044 /* Shortcuts.swift */,
@@ -87,6 +90,7 @@
 			buildConfigurationList = DB12AC3FF4283378CDCBA5B3 /* Build configuration list for PBXNativeTarget "Mindow" */;
 			buildPhases = (
 				7F8FA34773A3DB04EA94DAFD /* Sources */,
+				FDC929B9557F39036F2A3BD6 /* Resources */,
 				E2FAA471DAD02C6BC5E2AB24 /* Frameworks */,
 			);
 			buildRules = (
@@ -136,6 +140,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		FDC929B9557F39036F2A3BD6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				24231B675AF137A2B69017EC /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		7F8FA34773A3DB04EA94DAFD /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -162,6 +177,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "MIT License";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -247,6 +263,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "MIT License";
 				LD_RUNPATH_SEARCH_PATHS = (

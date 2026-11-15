@@ -5,7 +5,13 @@ A keyboard-driven window manager for macOS that keeps your Spectacle shortcuts.
 [Spectacle](https://github.com/eczarny/spectacle) was archived in 2019. Mindow aims to cover its 18 actions,
 cycle sizes when the same shortcut is pressed again, and import an existing Spectacle `Shortcuts.json`.
 
-> Status: all 18 actions, size cycling and Spectacle import are in. No signed release yet; build from source.
+## Install
+
+```sh
+brew install --cask jeong-jae-hun/tap/mindow
+```
+
+Or download the notarized zip from [Releases](https://github.com/Jeong-Jae-Hun/mindow/releases).
 
 ## Features
 
@@ -31,6 +37,12 @@ xcodebuild -project Mindow.xcodeproj -scheme Mindow build
 Pure logic (window math, size cycling, undo history, Spectacle parsing) lives in `MindowCore` and is covered by tests.
 The app target only talks to the Accessibility API, registers shortcuts and draws settings.
 Dependencies are pinned in `project.yml` and `Package.resolved`.
+
+## Release
+
+`scripts/release.sh` archives, signs with a Developer ID certificate and submits to Apple's notary service,
+then `PHASE=publish scripts/release.sh` staples the ticket and creates the GitHub Release with the zip's SHA-256.
+Signing keys stay on the release machine; CI never sees them. `DRY_RUN=1` builds an ad-hoc signed app without an Apple account.
 
 ## License
 
