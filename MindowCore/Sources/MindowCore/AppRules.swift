@@ -15,10 +15,6 @@ public struct AppRule: Equatable, Sendable {
         self.display = display
     }
 
-    /// Display indexes a stored rule may name. A Mac drives far fewer screens; the bound
-    /// keeps a hand-edited huge number from reaching Settings, which lists it by number.
-    public static let displays = 0..<32
-
     /// Actions a rule can use: those with a frame on one screen from the window alone.
     /// Undo, redo, display moves and Split with Previous Window need history, a second
     /// screen or a second window.
@@ -53,8 +49,8 @@ public struct AppRules: Equatable, Sendable {
     }
 
     /// Entries that aren't a dictionary, lack a bundle ID, name an action Mindow doesn't
-    /// have or `AppRule.actions` leaves out, or give a display outside `AppRule.displays`,
-    /// are skipped: a hand edit or a newer version's rule drops that one rule only.
+    /// have or `AppRule.actions` leaves out, or give a display that isn't a whole number
+    /// from 0, are skipped: a hand edit or a newer version's rule drops that one rule only.
     public init(plist: Any?) {
         let entries = plist as? [Any] ?? []
         self.init(entries.compactMap { entry -> AppRule? in
@@ -64,7 +60,7 @@ public struct AppRules: Equatable, Sendable {
                   let action = WindowAction(rawValue: name), AppRule.actions.contains(action)
             else { return nil }
             guard let raw = dictionary["display"] else { return AppRule(bundleID: bundleID, action: action) }
-            guard let display = raw as? Int, AppRule.displays.contains(display) else { return nil }
+            guard let display = raw as? Int, display >= 0 else { return nil }
             return AppRule(bundleID: bundleID, action: action, display: display)
         })
     }

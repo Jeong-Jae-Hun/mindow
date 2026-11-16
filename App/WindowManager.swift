@@ -221,11 +221,12 @@ final class WindowManager {
     ///
     /// New windows often size or place themselves right after they appear, which would
     /// undo a move made at once, so it waits `autoPlaceDelay` first. An app that still
-    /// moves the window afterwards gets one more try. Undo keeps the frame from before
-    /// the first move that happened, whichever pass made it.
+    /// moves the window afterwards gets one more try at the same target: worked out
+    /// again from the moved frame, Make Larger would grow it twice. Undo keeps the frame
+    /// from before the first move that happened, whichever pass made it.
     func autoPlace(_ window: AXUIElement, of bundleID: String) async {
         AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
-        var applied: CGRect?
+        var first: (rule: AppRule, frame: CGRect, screen: CGRect, applied: CGRect)?
         var recorded = false
         for delay in [Self.autoPlaceDelay, Self.autoPlaceDelay * 2] {
             try? await Task.sleep(for: delay)
@@ -237,20 +238,25 @@ final class WindowManager {
                   window.flag(kAXMinimizedAttribute) == false, window.flag(fullScreenAttribute) == false,
                   let current = window.frame
             else { return }
-            // The second pass is only for a window the app moved off the first one's frame.
-            if let applied, WindowLayout.isClose(current, applied) { return }
-            let screens = NSScreen.axFrames.map(\.visible)
-            guard let placement = rule.placement(for: current, among: screens, gap: Preferences.gapValue),
-                  let next = window.setFrame(placement.frame, within: screens[placement.screen])
-            else { return }
-            if !recorded, didMove(next, from: current) {
+            let target: (frame: CGRect, screen: CGRect)
+            if let first {
+                // Only for a window the app moved off the first pass's frame, by the same rule.
+                guard rule == first.rule, !WindowLayout.isClose(current, first.applied) else { return }
+                target = (first.frame, first.screen)
+            } else {
+                let screens = NSScreen.axFrames.map(\.visible)
+                guard let placement = rule.placement(for: current, among: screens, gap: Preferences.gapValue) else { return }
+                target = (placement.frame, screens[placement.screen])
+            }
+            guard let applied = window.setFrame(target.frame, within: target.screen) else { return }
+            if !recorded, didMove(applied, from: current) {
                 recorded = true
                 history.record(current, for: window)
                 if rule.action == .moveToFullscreen {
                     maximized.remember(current, for: window)
                 }
             }
-            applied = next
+            first = (rule, target.frame, target.screen, applied)
         }
     }
 

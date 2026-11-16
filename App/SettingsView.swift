@@ -229,7 +229,8 @@ private struct AutoPlacementSection: View {
                             }
                             // A display that isn't connected now keeps its choice as one more item.
                             if let display = rule.display, display >= NSScreen.screens.count {
-                                Text("Display \(display + 1) (not connected)").tag(Int?.some(display))
+                                // Unnumbered: a hand-edited index can be any size, even Int.max.
+                                Text("Display Not Connected").tag(Int?.some(display))
                             }
                         }
                     }

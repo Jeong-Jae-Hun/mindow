@@ -34,8 +34,6 @@ struct AppRulesTests {
             ["bundleID": slack, "action": "SplitWithPrevious"],
             ["bundleID": slack, "action": "MoveToLeftHalf", "display": -1],
             ["bundleID": slack, "action": "MoveToLeftHalf", "display": "1"],
-            ["bundleID": slack, "action": "MoveToLeftHalf", "display": Int.max],
-            ["bundleID": slack, "action": "MoveToLeftHalf", "display": 32],
             ["bundleID": "", "action": "MoveToLeftHalf"],
             ["action": "MoveToLeftHalf"],
             "MoveToLeftHalf",
@@ -103,6 +101,8 @@ struct AppRulesTests {
         let onRight = CGRect(x: 1500, y: 100, width: 400, height: 300)
         let fallback = try #require(AppRule(bundleID: slack, action: .moveToLeftHalf, display: 2).placement(for: onRight, among: [left, right], gap: 0))
         #expect(fallback.screen == 1)
+        let huge = AppRules(plist: [["bundleID": slack, "action": "MoveToLeftHalf", "display": Int.max]])
+        #expect(huge.rule(for: slack)?.placement(for: onRight, among: [left, right], gap: 0)?.screen == 1)
         #expect(AppRule(bundleID: slack, action: .moveToLeftHalf).placement(for: window, among: [], gap: 0) == nil)
     }
 }
