@@ -11,8 +11,8 @@ struct LayoutSnapshotTests {
     let monitor = CGRect(x: 1512, y: 0, width: 1920, height: 1055)
     let id = "0193A2C4-7E1F-7B2A-9C3D-1E2F3A4B5C6D"
 
-    func saved(_ title: String, _ index: Int, bundleID: String? = nil) -> LayoutSnapshot.Window {
-        LayoutSnapshot.Window(bundleID: bundleID ?? orca, title: title, index: index, display: 0, frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    func saved(_ title: String, _ index: Int) -> LayoutSnapshot.Window {
+        LayoutSnapshot.Window(bundleID: orca, title: title, index: index, display: 0, frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     }
 
     func paired(_ saved: [LayoutSnapshot.Window], _ live: [String]) -> [String: Int] {
@@ -76,10 +76,11 @@ struct LayoutSnapshotTests {
         #expect(result == ["1:README": 1, "0:New B": 0, "2:New C": 2])
     }
 
-    @Test("제목이 같은 창이 여럿이면 차례로 짝짓고 빈 제목은 제목으로 짝짓지 않는다")
+    @Test("제목이 같은 창이 여럿이면 차례로 짝짓고, 빈 제목도 빈 제목끼리 먼저 짝짓는다")
     func 중복제목() {
         #expect(paired([saved("Untitled", 0), saved("Untitled", 1)], ["Untitled", "Other", "Untitled"]) == ["0:Untitled": 0, "2:Untitled": 1])
         #expect(paired([saved("", 1), saved("Doc", 0)], ["", "", "Doc"]) == ["2:Doc": 0, "0:": 1])
+        #expect(paired([saved("", 0), saved("Old", 1)], ["New", ""]) == ["1:": 0, "0:New": 1])
     }
 
     @Test("짝이 없는 저장 창·지금 창은 건드리지 않고, 앱이 없으면 아무것도 짝짓지 않는다")
@@ -92,7 +93,9 @@ struct LayoutSnapshotTests {
 
     @Test("앱 목록은 첫 창이 저장된 순서이고 중복이 없다")
     func 앱목록() {
-        let layout = LayoutSnapshot(name: "코딩", windows: [saved("a", 0), saved("b", 0, bundleID: safari), saved("c", 1)])
+        var other = saved("b", 0)
+        other.bundleID = safari
+        let layout = LayoutSnapshot(name: "코딩", windows: [saved("a", 0), other, saved("c", 1)])
         #expect(layout.bundleIDs == [orca, safari])
     }
 

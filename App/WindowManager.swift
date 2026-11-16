@@ -280,7 +280,8 @@ final class WindowManager {
     /// standard, not minimized, not full screen windows, except Mindow and excluded
     /// apps. One app per main thread turn, like display restore, and an app that stops
     /// answering is left out. A second running copy of an app is left out too, since
-    /// restoring finds an app by bundle ID. Empty when the displays change midway.
+    /// restoring finds an app by bundle ID. Empty when the displays change or trust is
+    /// lost midway.
     func captureLayout() async -> [LayoutSnapshot.Window] {
         guard AXIsProcessTrusted() else { return [] }
         let screens = NSScreen.axFrames.map(\.visible)
@@ -293,8 +294,11 @@ final class WindowManager {
         for app in apps.prefix(AXUIElement.passAppLimit) {
             await Task.yield()
             // Displays that changed meanwhile would number windows against the old ones.
-            guard NSScreen.axFrames.map(\.visible) == screens else { return [] }
-            guard !app.isTerminated, let bundleID = app.bundleIdentifier, seen.insert(bundleID).inserted else { continue }
+            guard NSScreen.axFrames.map(\.visible) == screens, AXIsProcessTrusted() else { return [] }
+            // Read after every yield, so an app excluded meanwhile is left out.
+            guard !app.isTerminated, !ExcludedApps.stored.contains(app.bundleIdentifier),
+                  let bundleID = app.bundleIdentifier, seen.insert(bundleID).inserted
+            else { continue }
             let element = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(element, AXUIElement.messagingTimeout)
             guard let windows = element.standardWindows(withTitles: true) else { continue }

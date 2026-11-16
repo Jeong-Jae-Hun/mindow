@@ -73,7 +73,7 @@ public struct LayoutSnapshot: Equatable, Sendable {
 
     /// Pairs one app's saved windows with the windows it has now (`live`, in the app's
     /// order). Same titles pair first, in index order, so two windows with one title
-    /// pair up in turn; an empty title never matches by title. The rest pair by order:
+    /// (or none) pair up in turn. The rest pair by order:
     /// saved by index, live as listed. Whatever is left on either side isn't paired, so
     /// those windows stay where they are.
     public static func match<Live>(_ saved: [Window], live: [(window: Live, title: String)]) -> [(live: Live, saved: Window)] {
@@ -81,7 +81,7 @@ public struct LayoutSnapshot: Equatable, Sendable {
         var pairs: [(live: Int, saved: Window)] = []
         var leftover: [Window] = []
         for window in saved.sorted(by: { $0.index < $1.index }) {
-            if !window.title.isEmpty, let position = unpaired.firstIndex(where: { live[$0].title == window.title }) {
+            if let position = unpaired.firstIndex(where: { live[$0].title == window.title }) {
                 pairs.append((unpaired.remove(at: position), window))
             } else {
                 leftover.append(window)
