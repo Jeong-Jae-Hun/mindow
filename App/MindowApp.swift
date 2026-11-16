@@ -35,7 +35,7 @@ struct MindowApp: App {
             ForEach(WindowAction.Family.allCases, id: \.self) { family in
                 ForEach(family.actions, id: \.self) { action in
                     if let name = Shortcuts.names[action] {
-                        Button(action.title) { appDelegate.windows.perform(action, in: appDelegate.windows.lastOtherApp) }
+                        Button(action.title) { appDelegate.windows.perform(action, in: appDelegate.windows.menuTarget) }
                             .globalKeyboardShortcut(name)
                     }
                 }

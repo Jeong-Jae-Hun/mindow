@@ -28,23 +28,21 @@ final class WindowManager {
     private var cycleWindow: AXUIElement?
     private var history = MoveHistory<AXUIElement>()
     private var maximized = MaximizeMemory<AXUIElement>()
-    /// The app a menu bar click is meant for. Mindow itself becomes frontmost while its
-    /// settings window is open, so the menu cannot rely on the frontmost app.
-    private(set) var lastOtherApp: NSRunningApplication?
+    /// The frontmost app when the last menu opened. A menu bar click acts on it, not on
+    /// whatever is frontmost when the item fires, in case opening the menu changed that.
+    private(set) var menuTarget: NSRunningApplication?
 
     init() {
-        let current = NSWorkspace.shared.frontmostApplication
-        lastOtherApp = current?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : current
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
-        ) { [weak self] notification in
-            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
-            MainActor.assumeIsolated { self?.lastOtherApp = app }
+        // Menus post this on the main thread before tracking starts; a queue would deliver it late.
+        NotificationCenter.default.addObserver(
+            forName: NSMenu.didBeginTrackingNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            guard Thread.isMainThread else { return }
+            MainActor.assumeIsolated { self?.menuTarget = NSWorkspace.shared.frontmostApplication }
         }
     }
 
-    /// Shortcuts act on the frontmost app; the menu passes `lastOtherApp`.
+    /// Shortcuts act on the frontmost app; the menu passes `menuTarget`.
     func perform(_ action: WindowAction, in target: NSRunningApplication? = NSWorkspace.shared.frontmostApplication) {
         var focused: CFTypeRef?
         guard AXIsProcessTrusted(),
