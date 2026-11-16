@@ -95,7 +95,7 @@ public struct SettingsFile: Equatable, Sendable {
                     if AppRules(plist: [entry]).rules.isEmpty {
                         skipped.append("appRules: \(Self.describeEntry(entry))")
                     } else {
-                        skipped += Self.unknownKeys(in: entry, allowed: ["bundleID", "action", "display"], at: "appRules.\(Self.describeEntry(entry))")
+                        skipped += Self.unknownKeys(in: entry, allowed: ["bundleID", "action", "display"]).map { "appRules.\(Self.describeEntry(entry)).\($0): unknown setting" }
                     }
                 }
             } else {
@@ -111,11 +111,11 @@ public struct SettingsFile: Equatable, Sendable {
                         skipped.append("layouts: \(Self.describeEntry(entry))")
                         continue
                     }
-                    skipped += Self.unknownKeys(in: entry, allowed: ["id", "name", "windows"], at: "layouts.\(kept.name)")
+                    skipped += Self.unknownKeys(in: entry, allowed: ["id", "name", "windows"]).map { "layouts.\(kept.name).\($0): unknown setting" }
                     let written = (entry as? [String: Any])?["windows"] as? [Any] ?? []
                     if kept.windows.count < written.count { skipped.append("layouts: \(written.count - kept.windows.count) windows of \(kept.name)") }
                     for (index, window) in written.enumerated() {
-                        skipped += Self.unknownKeys(in: window, allowed: Self.windowKeys, at: "layouts.\(kept.name).windows[\(index)]")
+                        skipped += Self.unknownKeys(in: window, allowed: Self.windowKeys).map { "layouts.\(kept.name).windows[\(index)].\($0): unknown setting" }
                     }
                 }
             } else {
@@ -136,7 +136,7 @@ public struct SettingsFile: Equatable, Sendable {
                               let keyCode = PlistNumber.index(entry["carbonKeyCode"]), carbonRange.contains(keyCode),
                               let modifiers = PlistNumber.index(entry["carbonModifiers"]), carbonRange.contains(modifiers) {
                         settings.shortcuts[name] = KeyBinding(carbonKeyCode: keyCode, carbonModifiers: modifiers)
-                        skipped += unknownKeys(in: entry, allowed: ["carbonKeyCode", "carbonModifiers"], at: "shortcuts.\(name)")
+                        skipped += Self.unknownKeys(in: entry, allowed: ["carbonKeyCode", "carbonModifiers"]).map { "shortcuts.\(name).\($0): unknown setting" }
                     } else {
                         skipped.append("shortcuts.\(name): not a shortcut or null")
                     }
@@ -215,9 +215,9 @@ public struct SettingsFile: Equatable, Sendable {
     private static let keys: Set<String> = Set(["format", "version", "shortcuts", "gap", "excludedApps", "appRules", "layouts"] + flags.map(\.key))
     private static let windowKeys: Set<String> = ["bundleID", "title", "index", "display", "frame", "screen"]
 
-    /// Keys of an object entry that its kind doesn't have; they are left out on import.
-    private static func unknownKeys(in entry: Any, allowed: Set<String>, at path: String) -> [String] {
-        ((entry as? [String: Any])?.keys).map { keys in keys.filter { !allowed.contains($0) }.sorted().map { "\(path).\($0): unknown setting" } } ?? []
+    /// Keys of an object entry that its kind doesn't have, sorted; they are left out on import.
+    private static func unknownKeys(in entry: Any, allowed: Set<String>) -> [String] {
+        ((entry as? [String: Any])?.keys).map { $0.filter { !allowed.contains($0) }.sorted() } ?? []
     }
 
     private static func describe(_ value: Bool) -> String { value ? "on" : "off" }
