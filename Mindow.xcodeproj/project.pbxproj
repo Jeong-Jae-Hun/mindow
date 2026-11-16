@@ -15,6 +15,7 @@
 		AB95BC7FC6E897E0792ABB5E /* MindowCore in Frameworks */ = {isa = PBXBuildFile; productRef = 82932A3515153F2BDA7DC489 /* MindowCore */; };
 		AF0307CA924D1A64CC06CDEA /* DragSnap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E531D3407C954CF0C7D26BE8 /* DragSnap.swift */; };
 		B5A23269A80EC96E4F77102A /* SpectacleImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */; };
+		E21CE10C0E3689A90A444420 /* WindowIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995A35CBADD7BFD3F41EB957 /* WindowIntents.swift */; };
 		E483D75A411321D2E56BB09D /* Shortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6727C2AF95919FB165B7C044 /* Shortcuts.swift */; };
 		ED7B03561D9C3A93C1828077 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0EE85A2F7D1C75E8D563FA9 /* UpdateChecker.swift */; };
 		F639D4212B2EDBF60E142EF5 /* MindowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40545EDA75EEC02F3900FED /* MindowApp.swift */; };
@@ -22,6 +23,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0596EDE4F43AA110FB2094E5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		374B1A75057060E4B7AF2AC0 /* Mindow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mindow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		37649C61739B946CBB1A0836 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4FE4E0A0FAFA9FE08C45FCA6 /* ActionHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionHUD.swift; sourceTree = "<group>"; };
@@ -29,6 +31,7 @@
 		6727C2AF95919FB165B7C044 /* Shortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shortcuts.swift; sourceTree = "<group>"; };
 		932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectacleImporter.swift; sourceTree = "<group>"; };
 		9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		995A35CBADD7BFD3F41EB957 /* WindowIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowIntents.swift; sourceTree = "<group>"; };
 		B40545EDA75EEC02F3900FED /* MindowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindowApp.swift; sourceTree = "<group>"; };
 		E0EE85A2F7D1C75E8D563FA9 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		E531D3407C954CF0C7D26BE8 /* DragSnap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragSnap.swift; sourceTree = "<group>"; };
@@ -72,11 +75,13 @@
 				EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */,
 				9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */,
 				E531D3407C954CF0C7D26BE8 /* DragSnap.swift */,
+				0596EDE4F43AA110FB2094E5 /* Info.plist */,
 				B40545EDA75EEC02F3900FED /* MindowApp.swift */,
 				37649C61739B946CBB1A0836 /* SettingsView.swift */,
 				6727C2AF95919FB165B7C044 /* Shortcuts.swift */,
 				932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */,
 				E0EE85A2F7D1C75E8D563FA9 /* UpdateChecker.swift */,
+				995A35CBADD7BFD3F41EB957 /* WindowIntents.swift */,
 				51098E754D1E8632882E50C4 /* WindowManager.swift */,
 			);
 			path = App;
@@ -173,6 +178,7 @@
 				E483D75A411321D2E56BB09D /* Shortcuts.swift in Sources */,
 				B5A23269A80EC96E4F77102A /* SpectacleImporter.swift in Sources */,
 				ED7B03561D9C3A93C1828077 /* UpdateChecker.swift in Sources */,
+				E21CE10C0E3689A90A444420 /* WindowIntents.swift in Sources */,
 				F939A30AA0FA78BC921A76F7 /* WindowManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -189,6 +195,7 @@
 				CURRENT_PROJECT_VERSION = 3;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "MIT License";
@@ -275,6 +282,7 @@
 				CURRENT_PROJECT_VERSION = 3;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "MIT License";

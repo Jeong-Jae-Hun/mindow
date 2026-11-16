@@ -3,12 +3,15 @@ import MindowCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let windows = WindowManager()
+    let windows = WindowManager.shared
     let updates = UpdateChecker()
     lazy var settings = SettingsWindowController(updates: updates)
     private var dragSnap: DragSnap?
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    /// A URL that launches Mindow arrives before `applicationDidFinishLaunching`, so the
+    /// defaults its action reads are set here, and the app it means is read before
+    /// Mindow may come to the front.
+    func applicationWillFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [
             Preferences.showMenuBarIcon: true,
             Preferences.cycleOnRepeat: true,
@@ -16,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Preferences.showHUD: true,
             Preferences.checkForUpdates: true,
         ])
+        Shortcuts.frontmost.update(NSWorkspace.shared.frontmostApplication)
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
         Shortcuts.register { [windows] action in windows.perform(action) }
         dragSnap = DragSnap(windows: windows)
         updates.start()
@@ -38,7 +45,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { Shortcuts.frontmost.update(app) }
         }
         // An excluded app can already be in front at launch; no activation follows.
-        Shortcuts.frontmost.update(NSWorkspace.shared.frontmostApplication)
+        Shortcuts.sync()
+    }
+
+    /// `mindow://` URLs (`URLCommand`). Anything Mindow can't do beeps and nothing else
+    /// happens; layouts don't exist yet, so a layout URL is one of those.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            switch URLCommand(url) {
+            case .action(let action): windows.performOnFrontmost(action)
+            case .layout, nil: NSSound.beep()
+            }
+        }
     }
 
     /// With the menu bar icon hidden, opening the app again is the only way back to settings.

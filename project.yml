@@ -16,6 +16,17 @@ targets:
     dependencies:
       - package: MindowCore
       - package: KeyboardShortcuts
+    # Build settings can't declare URL types, so they live in this file, which Xcode
+    # merges with the Info.plist GENERATE_INFOPLIST_FILE builds from INFOPLIST_KEY_*.
+    # XcodeGen writes 1.0 and 1 for the versions otherwise, so they point at the settings.
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleURLTypes:
+          - CFBundleURLName: io.github.jeong-jae-hun.mindow
+            CFBundleURLSchemes: [mindow]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.jeong-jae-hun.mindow
