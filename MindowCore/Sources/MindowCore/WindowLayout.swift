@@ -83,7 +83,7 @@ public enum WindowLayout {
             // Maximize Height applied the gap above to its height only; its x and width stay the window's.
             let framed = switch action {
             case .moveToCenter, .makeLarger, .makeSmaller, .maximizeHeight: rect
-            default: tiled(rect, in: s, gap: context.gap)
+            default: tiled(rect, context)
             }
             return Placement(frame: rounded(framed), step: action.cyclesOnRepeat ? step : 0)
         }
@@ -154,7 +154,7 @@ public enum WindowLayout {
             let cell = rows
                 ? CGRect(x: s.minX, y: s.minY + s.height * CGFloat(i) / n, width: s.width, height: s.height / n)
                 : CGRect(x: s.minX + s.width * CGFloat(i) / n, y: s.minY, width: s.width / n, height: s.height)
-            return tiled(cell, in: s, gap: context.gap)
+            return tiled(cell, context)
         }
         // Every cell has the same cross-axis extent: the screen less the gap.
         let span = cells[0]
@@ -176,12 +176,21 @@ public enum WindowLayout {
 
     /// Insets a tile by the full gap on edges that touch the screen and by half of it
     /// on edges shared with a neighbour, so two neighbours end up exactly `gap` apart.
-    private static func tiled(_ r: CGRect, in s: CGRect, gap: CGFloat) -> CGRect {
+    /// Edges are rounded, not origin and size, or a shared edge at a fraction (thirds
+    /// of 1366) leaves a gap one point off. Half-up rounding shifts with whole points,
+    /// so both sides of an edge round the same way. Gap 0 keeps the old frames as is.
+    private static func tiled(_ r: CGRect, _ context: Context) -> CGRect {
+        let (s, gap) = (context.screen, context.gap)
+        guard gap > 0 else { return r }
         let left = abs(r.minX - s.minX) <= tolerance ? gap : gap / 2
         let right = abs(r.maxX - s.maxX) <= tolerance ? gap : gap / 2
         let top = abs(r.minY - s.minY) <= tolerance ? gap : gap / 2
         let bottom = abs(r.maxY - s.maxY) <= tolerance ? gap : gap / 2
-        return CGRect(x: r.minX + left, y: r.minY + top, width: r.width - left - right, height: r.height - top - bottom)
+        let minX = (r.minX + left + 0.5).rounded(.down)
+        let maxX = (r.maxX - right + 0.5).rounded(.down)
+        let minY = (r.minY + top + 0.5).rounded(.down)
+        let maxY = (r.maxY - bottom + 0.5).rounded(.down)
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
     private static func resized(_ context: Context, by direction: CGFloat) -> CGRect {

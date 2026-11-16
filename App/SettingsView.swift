@@ -60,7 +60,7 @@ struct SettingsView: View {
                 LabeledContent("Window gap") {
                     HStack {
                         Slider(value: $gap, in: 0...32, step: 2)
-                        Text("\(Int(gap)) px").monospacedDigit().frame(width: 44, alignment: .trailing)
+                        Text("\(Int(gap)) pt").monospacedDigit().frame(width: 44, alignment: .trailing)
                     }
                 }
                 Toggle("Show icon in menu bar", isOn: $showMenuBarIcon)
