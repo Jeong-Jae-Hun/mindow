@@ -121,7 +121,7 @@ final class WindowManager {
     /// of the shortcut: step 0, recorded for undo, and the next press continues the
     /// cycle. Fullscreen never restores the remembered frame here, because a window
     /// dragged along the top edge can drop where it already filled the screen.
-    func snap(_ target: SnapZone.Target, window dropped: (pid: pid_t, frame: CGRect)) {
+    func snap(_ target: SnapZone.Target, window dropped: (pid: pid_t, frame: CGRect, byCommand: Bool)) {
         let screens = NSScreen.axFrames.map(\.visible)
         guard AXIsProcessTrusted(), screens.indices.contains(target.screen) else { return }
 
@@ -140,10 +140,11 @@ final class WindowManager {
             guard let frame = window.frame else { return }
             if WindowLayout.isClose(frame, dropped.frame) { matches.append(window) }
         }
-        // Two windows of one app on the same frame: only the focused one (the one just
-        // dragged, unless Command was held) can be told apart. Otherwise leave both alone.
+        // Two windows of one app on the same frame: only the focused one can be told
+        // apart, and only when it is the one dragged. Command drags a window without
+        // focusing it, so then neither is touched.
         var focused: CFTypeRef?
-        if matches.count > 1,
+        if matches.count > 1, !dropped.byCommand,
            AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &focused) == .success,
            let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() {
             let window = unsafeDowncast(focused, to: AXUIElement.self)
@@ -196,14 +197,18 @@ private extension AXUIElement {
     /// display) and reads the frame back. Apps with a minimum size may keep a larger
     /// one, so the result is shifted back on screen. Returns the frame the window
     /// actually has, or nil when it cannot be read.
+    ///
+    /// A write the app never answered (`.cannotComplete`, also what a messaging timeout
+    /// gives) stops it: every further message would wait just as long on the main thread.
     func setFrame(_ target: CGRect, within screen: CGRect) -> CGRect? {
-        set(sizeAttribute, to: target.size)
-        set(positionAttribute, to: target.origin)
-        set(sizeAttribute, to: target.size)
-        guard let applied = frame else { return nil }
+        guard set(sizeAttribute, to: target.size) != .cannotComplete,
+              set(positionAttribute, to: target.origin) != .cannotComplete,
+              set(sizeAttribute, to: target.size) != .cannotComplete,
+              let applied = frame
+        else { return nil }
         let fitted = WindowLayout.fitInside(applied, screen: screen)
         guard fitted.origin != applied.origin else { return applied }
-        set(positionAttribute, to: fitted.origin)
+        guard set(positionAttribute, to: fitted.origin) != .cannotComplete else { return nil }
         return frame
     }
 
@@ -220,10 +225,9 @@ private extension AXUIElement {
         }
     }
 
-    @discardableResult
-    func set<Value>(_ attribute: AXAttribute<Value>, to value: Value) -> Bool {
+    func set<Value>(_ attribute: AXAttribute<Value>, to value: Value) -> AXError {
         var value = value
-        guard let axValue = AXValueCreate(attribute.type, &value) else { return false }
-        return AXUIElementSetAttributeValue(self, attribute.name as CFString, axValue) == .success
+        guard let axValue = AXValueCreate(attribute.type, &value) else { return .illegalArgument }
+        return AXUIElementSetAttributeValue(self, attribute.name as CFString, axValue)
     }
 }

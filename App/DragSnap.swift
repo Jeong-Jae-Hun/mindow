@@ -22,6 +22,8 @@ final class DragSnap {
     private struct Drag {
         /// The window under the cursor when the button went down, with its frame then.
         let window: WindowListEntry
+        /// Command drags a background window without focusing it.
+        let byCommand: Bool
         /// Zero until the first read, so the first drag event reads right away.
         var lastRead: TimeInterval = 0
         /// Screens as of the moment the window started moving; nil until then.
@@ -99,7 +101,7 @@ final class DragSnap {
             gesture = .ignored
             return
         }
-        gesture = .tracking(Drag(window: window))
+        gesture = .tracking(Drag(window: window, byCommand: NSEvent.modifierFlags.contains(.command)))
     }
 
     private func mouseDragged() {
@@ -155,7 +157,7 @@ final class DragSnap {
               let target = SnapZone.target(at: cursor, screens: screens.map(\.frame)),
               let frame = WindowListEntry.frame(of: drag.window.id)
         else { return }
-        windows.snap(target, window: (drag.window.pid, frame))
+        windows.snap(target, window: (drag.window.pid, frame, drag.byCommand))
     }
 
     private func reset() {
