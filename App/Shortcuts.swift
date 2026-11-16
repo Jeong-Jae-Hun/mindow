@@ -61,20 +61,31 @@ final class ShortcutPause {
     }
 }
 
-/// Follows app activation so shortcuts turn off under an excluded app.
+/// Follows app activation so shortcuts turn off under an excluded app, and remembers
+/// the app before the current one for Split with Previous Window.
 @MainActor @Observable
 final class FrontmostApp {
     @ObservationIgnored private(set) var bundleID: String?
-    /// Opening Settings brings Mindow to the front, so "Add Frontmost App" needs the
-    /// app that was in front before it.
-    private(set) var lastOther: NSRunningApplication?
+    /// Apps other than Mindow. Opening Settings brings Mindow to the front, so "Add
+    /// Frontmost App" needs the app that was in front before it.
+    private var recent = RecentApps<NSRunningApplication>()
+
+    var lastOther: NSRunningApplication? { recent.last }
 
     func update(_ app: NSRunningApplication?) {
         bundleID = app?.bundleIdentifier
-        if let app, app != NSRunningApplication.current, app != lastOther {
-            lastOther = app
+        // Only a real change writes, so Settings doesn't redraw on every switch back.
+        if let app, app != NSRunningApplication.current, app != recent.last {
+            recent.activated(app)
         }
         Shortcuts.sync()
+    }
+
+    /// The app in front right before `target`, or nil when there is none or it quit.
+    /// An excluded app still counts: the action is asked for explicitly, and exclusion
+    /// only keeps Mindow's keys away from the app in front.
+    func previous(before target: NSRunningApplication) -> NSRunningApplication? {
+        recent.previous(before: target).flatMap { $0.isTerminated ? nil : $0 }
     }
 }
 

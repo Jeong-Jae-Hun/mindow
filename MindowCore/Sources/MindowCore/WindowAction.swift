@@ -6,6 +6,7 @@ public enum WindowAction: String, CaseIterable, Sendable {
     case moveToRightHalf = "MoveToRightHalf"
     case moveToTopHalf = "MoveToTopHalf"
     case moveToBottomHalf = "MoveToBottomHalf"
+    case splitWithPrevious = "SplitWithPrevious"
     case moveToUpperLeft = "MoveToUpperLeft"
     case moveToUpperRight = "MoveToUpperRight"
     case moveToLowerLeft = "MoveToLowerLeft"
@@ -35,6 +36,7 @@ public enum WindowAction: String, CaseIterable, Sendable {
         case .moveToRightHalf: "Right Half"
         case .moveToTopHalf: "Top Half"
         case .moveToBottomHalf: "Bottom Half"
+        case .splitWithPrevious: "Split with Previous Window"
         case .moveToUpperLeft: "Upper Left"
         case .moveToUpperRight: "Upper Right"
         case .moveToLowerLeft: "Lower Left"
@@ -86,7 +88,7 @@ public enum WindowAction: String, CaseIterable, Sendable {
 
     public var family: Family {
         switch self {
-        case .moveToLeftHalf, .moveToRightHalf, .moveToTopHalf, .moveToBottomHalf: .halves
+        case .moveToLeftHalf, .moveToRightHalf, .moveToTopHalf, .moveToBottomHalf, .splitWithPrevious: .halves
         case .moveToUpperLeft, .moveToUpperRight, .moveToLowerLeft, .moveToLowerRight: .corners
         case .moveToNextThird, .moveToPreviousThird, .moveToNextFourth, .moveToPreviousFourth,
              .moveToNextRowThird, .moveToPreviousRowThird: .cells

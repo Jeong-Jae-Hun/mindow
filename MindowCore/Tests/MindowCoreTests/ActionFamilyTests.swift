@@ -17,7 +17,7 @@ struct ActionFamilyTests {
         #expect(Set(families.map(\.title)).count == families.count)
     }
 
-    @Test("1/3·1/4·세로 1/3은 한 묶음이고 가운데 2/3는 2/3 묶음에 든다")
+    @Test("1/3·1/4·세로 1/3은 한 묶음이고 가운데 2/3는 2/3 묶음, 직전 창과 나란히는 절반 묶음에 든다")
     func 소속() {
         #expect(WindowAction.Family.cells.actions == [
             .moveToNextThird, .moveToPreviousThird, .moveToNextFourth, .moveToPreviousFourth,
@@ -25,5 +25,6 @@ struct ActionFamilyTests {
         ])
         #expect(WindowAction.moveToCenterTwoThirds.family == .twoThirds)
         #expect(WindowAction.maximizeHeight.family == .fill)
+        #expect(WindowAction.Family.halves.actions.last == .splitWithPrevious)
     }
 }

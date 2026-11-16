@@ -6,6 +6,8 @@ import MindowCore
 
 private let positionAttribute = AXAttribute<CGPoint>(name: kAXPositionAttribute, type: .cgPoint)
 private let sizeAttribute = AXAttribute<CGSize>(name: kAXSizeAttribute, type: .cgSize)
+/// A window in its own macOS Space; it can't be moved or resized.
+private let fullScreenAttribute = "AXFullScreen"
 
 private struct AXAttribute<Value: BitwiseCopyable> {
     let name: String
@@ -44,20 +46,13 @@ final class WindowManager {
 
     /// Shortcuts act on the frontmost app; the menu passes `menuTarget`.
     func perform(_ action: WindowAction, in target: NSRunningApplication? = NSWorkspace.shared.frontmostApplication) {
-        var focused: CFTypeRef?
         guard AXIsProcessTrusted(),
               let app = target,
-              AXUIElementCopyAttributeValue(
-                  AXUIElementCreateApplication(app.processIdentifier),
-                  kAXFocusedWindowAttribute as CFString,
-                  &focused
-              ) == .success,
-              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
+              let window = AXUIElementCreateApplication(app.processIdentifier).focusedWindow
         else {
             NSSound.beep()
             return
         }
-        let window = unsafeDowncast(focused, to: AXUIElement.self)
         let screens = NSScreen.axFrames.map(\.visible)
         guard let current = window.frame, let index = WindowLayout.screenIndex(for: current, among: screens) else { return }
 
@@ -87,6 +82,36 @@ final class WindowManager {
             let offset = action == .moveToNextDisplay ? 1 : -1
             let to = screens[(index + offset + screens.count) % screens.count]
             if didMove(window.setFrame(WindowLayout.moveProportionally(current, between: (screen, to)), within: to), from: current) {
+                history.record(current, for: window)
+            }
+        case .splitWithPrevious:
+            // Nothing moves unless both windows can: a lone half is not what was asked
+            // for. The other app may be hung, so its messages wait `messagingTimeout` at
+            // most, and it moves first so a stalled write leaves this window alone.
+            guard let previousApp = Shortcuts.frontmost.previous(before: app) else {
+                NSSound.beep()
+                return
+            }
+            let otherApp = AXUIElementCreateApplication(previousApp.processIdentifier)
+            AXUIElementSetMessagingTimeout(otherApp, AXUIElement.messagingTimeout)
+            guard let other = otherApp.focusedWindow else {
+                NSSound.beep()
+                return
+            }
+            AXUIElementSetMessagingTimeout(other, AXUIElement.messagingTimeout)
+            // Each read that fails ends it, so a hung app costs one more timeout, not three.
+            guard other.flag(kAXMinimizedAttribute) == false, other.flag(fullScreenAttribute) == false,
+                  let otherCurrent = other.frame,
+                  let frames = SplitWithPrevious.frames(of: (current, otherCurrent), on: (screen, Preferences.gapValue))
+            else {
+                NSSound.beep()
+                return
+            }
+            guard let otherApplied = other.setFrame(frames.previous, within: screen) else { return }
+            if didMove(otherApplied, from: otherCurrent) {
+                history.record(otherCurrent, for: other)
+            }
+            if didMove(window.setFrame(frames.current, within: screen), from: current) {
                 history.record(current, for: window)
             }
         default:
@@ -143,11 +168,7 @@ final class WindowManager {
         // Two windows of one app on the same frame: only the focused one can be told
         // apart, and only when it is the one dragged. Command drags a window without
         // focusing it, so then neither is touched.
-        var focused: CFTypeRef?
-        if matches.count > 1, !dropped.byCommand,
-           AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &focused) == .success,
-           let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() {
-            let window = unsafeDowncast(focused, to: AXUIElement.self)
+        if matches.count > 1, !dropped.byCommand, let window = app.focusedWindow {
             matches = matches.contains(window) ? [window] : []
         }
         guard matches.count == 1, let window = matches.first, let current = window.frame else { return }
@@ -187,6 +208,27 @@ private extension AXUIElement {
     /// Upper bound per AX message, so an app that stopped responding can't hold the
     /// main thread for the system's default six seconds.
     static let messagingTimeout: Float = 0.25
+
+    /// The app element's focused window. Also answers for an app that isn't in front.
+    var focusedWindow: AXUIElement? {
+        var focused: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(self, kAXFocusedWindowAttribute as CFString, &focused) == .success,
+              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
+        else { return nil }
+        return unsafeDowncast(focused, to: AXUIElement.self)
+    }
+
+    /// False when the element doesn't have the attribute (most windows lack
+    /// AXFullScreen), nil when it can't be read (an app that stopped responding, or
+    /// one that has the attribute but gives no value).
+    func flag(_ name: String) -> Bool? {
+        var raw: CFTypeRef?
+        switch AXUIElementCopyAttributeValue(self, name as CFString, &raw) {
+        case .success: return raw as? Bool
+        case .attributeUnsupported: return false
+        default: return nil
+        }
+    }
 
     var frame: CGRect? {
         guard let origin = value(positionAttribute), let size = value(sizeAttribute) else { return nil }
