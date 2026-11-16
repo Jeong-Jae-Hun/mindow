@@ -6,6 +6,7 @@ import SwiftUI
 struct MindowApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @AppStorage(Preferences.showMenuBarIcon) private var showMenuBarIcon = true
+    private let layouts = LayoutLibrary.shared
 
     // Binding @AppStorage straight to isInserted hangs the app on macOS 26: the main
     // thread spins in scene updates and memory grows until it aborts. MenuBarExtra
@@ -41,6 +42,17 @@ struct MindowApp: App {
                 }
                 Divider()
             }
+            Menu("Layouts") {
+                ForEach(layouts.snapshots.layouts, id: \.id) { layout in
+                    Button(layout.name) { Task { await layouts.restore(id: layout.id) } }
+                        .globalKeyboardShortcut(Shortcuts.layoutName(layout.id))
+                }
+                if !layouts.snapshots.layouts.isEmpty {
+                    Divider()
+                }
+                Button("Save Current Layout…") { Task { await layouts.saveCurrent() } }
+            }
+            Divider()
             Toggle(Shortcuts.togglePauseTitle, isOn: pausedBinding)
                 .globalKeyboardShortcut(Shortcuts.togglePause)
             Divider()
@@ -68,6 +80,9 @@ enum Preferences {
     /// Plist array of `{bundleID, action, display?}` (`AppRules`): new windows of those
     /// apps are placed by the action.
     static let appRules = "mindow.appRules"
+    /// Plist array of `{id, name, windows}` (`LayoutSnapshots`); each layout's shortcut
+    /// is `KeyboardShortcuts_Layout_<id>`.
+    static let layouts = "mindow.layouts"
     /// Windows go back where they were when a set of displays seen before comes back.
     static let restoreOnDisplayChange = "mindow.restoreOnDisplayChange"
     /// Dragging a window to a screen edge places it there.

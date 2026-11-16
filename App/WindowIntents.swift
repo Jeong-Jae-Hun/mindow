@@ -47,6 +47,47 @@ struct WindowActionQuery: EnumerableEntityQuery {
     }
 }
 
+/// Puts windows back the way a saved layout has them, like its menu item.
+struct RestoreLayoutIntent: AppIntent {
+    static let title: LocalizedStringResource = "Restore Layout"
+    static let description = IntentDescription("Puts windows back where a saved Mindow layout has them.")
+    static let openAppWhenRun = false
+
+    @Parameter(title: "Layout")
+    var layout: LayoutEntity
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Restore \(\.$layout)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        await LayoutLibrary.shared.restore(id: layout.id)
+        return .result()
+    }
+}
+
+/// Saved in shortcuts by the layout's id, so renaming the layout keeps them working.
+struct LayoutEntity: AppEntity {
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Layout"
+    static let defaultQuery = LayoutQuery()
+
+    let id: String
+    let name: String
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
+}
+
+struct LayoutQuery: EnumerableEntityQuery {
+    func allEntities() async throws -> [LayoutEntity] {
+        LayoutSnapshots.stored.layouts.map { LayoutEntity(id: $0.id, name: $0.name) }
+    }
+
+    func entities(for identifiers: [String]) async throws -> [LayoutEntity] {
+        let stored = LayoutSnapshots.stored
+        return identifiers.compactMap { id in stored.layout(id: id).map { LayoutEntity(id: $0.id, name: $0.name) } }
+    }
+}
+
 struct MindowShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
@@ -57,6 +98,12 @@ struct MindowShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Move Window",
             systemImageName: "rectangle.split.2x2"
+        )
+        AppShortcut(
+            intent: RestoreLayoutIntent(),
+            phrases: ["Restore layout with \(.applicationName)"],
+            shortTitle: "Restore Layout",
+            systemImageName: "rectangle.3.group"
         )
     }
 }

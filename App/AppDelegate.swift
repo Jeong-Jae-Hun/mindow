@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Shortcuts.register { [windows] action in windows.perform(action) }
+        // Registers the layout shortcuts; a layout URL at launch may already have.
+        _ = LayoutLibrary.shared
         dragSnap = DragSnap(windows: windows)
         autoPlacement = AutoPlacement(windows: windows)
         displayRestore = DisplayRestore(windows: windows)
@@ -53,13 +55,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Shortcuts.sync()
     }
 
-    /// `mindow://` URLs (`URLCommand`). Anything Mindow can't do beeps and nothing else
-    /// happens; layouts don't exist yet, so a layout URL is one of those.
+    /// `mindow://` URLs (`URLCommand`). Anything Mindow can't do, such as a layout
+    /// name nobody saved, beeps and nothing else happens.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             switch URLCommand(url) {
             case .action(let action): windows.performOnFrontmost(action)
-            case .layout, nil: NSSound.beep()
+            case .layout(let name): Task { await LayoutLibrary.shared.restore(named: name) }
+            case nil: NSSound.beep()
             }
         }
     }

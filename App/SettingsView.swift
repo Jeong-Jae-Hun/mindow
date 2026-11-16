@@ -41,6 +41,7 @@ struct SettingsView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     @State private var conflicts = Shortcuts.conflicts()
+    private let layouts = LayoutLibrary.shared
 
     var body: some View {
         Form {
@@ -73,6 +74,28 @@ struct SettingsView: View {
             }
             ExcludedAppsSection()
             AutoPlacementSection()
+            Section {
+                ForEach(layouts.snapshots.layouts, id: \.id) { layout in
+                    VStack(alignment: .leading) {
+                        HStack {
+                            LayoutNameField(layout: layout)
+                            Button("Overwrite with Current Windows", systemImage: "arrow.triangle.2.circlepath") {
+                                Task { await layouts.overwrite(layout.id) }
+                            }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless).help("Overwrite with Current Windows")
+                            Button("Delete", systemImage: "minus.circle") { layouts.delete(layout.id) }
+                                .labelStyle(.iconOnly).buttonStyle(.borderless)
+                        }
+                        recorder("Shortcut", name: Shortcuts.layoutName(layout.id))
+                    }
+                }
+                Button("Save Current Layout…", systemImage: "plus") { Task { await layouts.saveCurrent() } }
+            } header: {
+                Text("Layouts")
+            } footer: {
+                Text("Restore from the menu bar, a shortcut, mindow://layout/<name> or the Shortcuts app. Windows are found by app, then title, then order; windows without a match stay put.")
+                    .foregroundStyle(.secondary).font(.caption)
+            }
             Section("General") {
                 Toggle("Cycle sizes when the same shortcut is pressed again", isOn: $cycleOnRepeat)
                 // Even steps keep the half gap between neighbours on whole points.
@@ -276,6 +299,38 @@ private struct AutoPlacementSection: View {
         guard next != rules else { return }
         rules = next
         UserDefaults.standard.set(next.plist, forKey: Preferences.appRules)
+    }
+}
+
+/// Renames on Return or when the field loses focus, not on every keystroke, so a name
+/// cleared to type a new one isn't refused halfway (blank names are ignored).
+private struct LayoutNameField: View {
+    let layout: LayoutSnapshot
+    @State private var text: String
+    @FocusState private var focused: Bool
+
+    init(layout: LayoutSnapshot) {
+        self.layout = layout
+        _text = State(initialValue: layout.name)
+    }
+
+    var body: some View {
+        TextField("Name", text: $text)
+            .labelsHidden()
+            .focused($focused)
+            .onSubmit(commit)
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { commit() }
+            }
+            .onChange(of: layout.name) { _, name in
+                if name != text { text = name }
+            }
+    }
+
+    private func commit() {
+        LayoutLibrary.shared.change { $0.rename(layout.id, to: text) }
+        // A blank or padded name shows the stored one again.
+        if let name = LayoutLibrary.shared.snapshots.layout(id: layout.id)?.name, name != text { text = name }
     }
 }
 

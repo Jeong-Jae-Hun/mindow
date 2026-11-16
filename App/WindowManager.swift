@@ -43,6 +43,7 @@ final class WindowManager {
     /// The frontmost app when the last menu opened. A menu bar click acts on it, not on
     /// whatever is frontmost when the item fires, in case opening the menu changed that.
     private(set) var menuTarget: NSRunningApplication?
+    private var restoringLayout = false
 
     init() {
         // Menus post this on the main thread before tracking starts; a queue would deliver it late.
@@ -272,6 +273,79 @@ final class WindowManager {
     }
 
     private static let autoPlaceDelay: Duration = .seconds(0.15)
+
+    // ─── Layouts ───
+
+    /// The windows on screen now, for a layout (`LayoutSnapshot`): every regular app's
+    /// standard, not minimized, not full screen windows, except Mindow and excluded
+    /// apps. One app per main thread turn, like display restore, and an app that stops
+    /// answering is left out. A second running copy of an app is left out too, since
+    /// restoring finds an app by bundle ID.
+    func captureLayout() async -> [LayoutSnapshot.Window] {
+        guard AXIsProcessTrusted() else { return [] }
+        let screens = NSScreen.axFrames.map(\.visible)
+        let excluded = ExcludedApps.stored
+        let apps = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && $0 != NSRunningApplication.current && !excluded.contains($0.bundleIdentifier)
+        }
+        var captured: [LayoutSnapshot.Window] = []
+        var seen = Set<String>()
+        for app in apps.prefix(AXUIElement.passAppLimit) {
+            await Task.yield()
+            guard !app.isTerminated, let bundleID = app.bundleIdentifier, seen.insert(bundleID).inserted else { continue }
+            let element = AXUIElementCreateApplication(app.processIdentifier)
+            AXUIElementSetMessagingTimeout(element, AXUIElement.messagingTimeout)
+            guard let windows = element.standardWindows(withTitles: true) else { continue }
+            captured += windows.enumerated().compactMap { index, window in
+                LayoutSnapshot.Window(bundleID: bundleID, title: window.title, index: index, window: window.frame, among: screens)
+            }
+        }
+        return captured
+    }
+
+    /// Puts a layout's windows back, app by app, one per main thread turn. Each app's
+    /// windows now are paired with the saved ones (`LayoutSnapshot.match`); windows
+    /// without a pair, of apps not running or excluded, minimized or full screen, or
+    /// saved on a display that isn't connected stay where they are. Each move is
+    /// recorded for undo, and the label shows the layout's name once. Ignores pause like
+    /// the menu, and a second restore while one runs.
+    func restore(_ layout: LayoutSnapshot) async {
+        guard AXIsProcessTrusted() else {
+            NSSound.beep()
+            return
+        }
+        guard !restoringLayout else { return }
+        restoringLayout = true
+        defer { restoringLayout = false }
+        let screens = NSScreen.axFrames.map(\.visible)
+        let saved = Dictionary(grouping: layout.windows, by: \.bundleID)
+        var labelScreen: CGRect?
+        for bundleID in layout.bundleIDs.prefix(AXUIElement.passAppLimit) {
+            await Task.yield()
+            // Read after every yield, so losing trust or excluding an app meanwhile wins.
+            guard AXIsProcessTrusted(), !ExcludedApps.stored.contains(bundleID),
+                  let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first(where: { !$0.isTerminated }),
+                  app != NSRunningApplication.current
+            else { continue }
+            let element = AXUIElementCreateApplication(app.processIdentifier)
+            AXUIElementSetMessagingTimeout(element, AXUIElement.messagingTimeout)
+            guard let live = element.standardWindows(withTitles: true) else { continue }
+            let pairs = LayoutSnapshot.match(saved[bundleID] ?? [], live: live.map { (window: $0, title: $0.title) })
+            for (window, entry) in pairs {
+                guard let placement = entry.placement(among: screens), !WindowLayout.isClose(window.frame, placement.frame) else { continue }
+                let screen = screens[placement.screen]
+                // The first unanswered write ends this app, so a hung app costs one timeout.
+                guard let applied = window.element.setFrame(placement.frame, within: screen) else { break }
+                if didMove(applied, from: window.frame) {
+                    history.record(window.frame, for: window.element)
+                    labelScreen = labelScreen ?? screen
+                }
+            }
+        }
+        if let labelScreen {
+            hud.show(layout.name, on: labelScreen)
+        }
+    }
 }
 
 // ─── Screens ───
@@ -299,6 +373,39 @@ extension AXUIElement {
         var all: CFTypeRef?
         guard AXUIElementCopyAttributeValue(self, kAXWindowsAttribute as CFString, &all) == .success else { return nil }
         return all as? [AXUIElement] ?? []
+    }
+
+    /// Upper bounds for a pass over every app's windows (display restore, layouts), so
+    /// one pass can't hold the main thread for long even when many apps time out.
+    static let passAppLimit = 60
+    static let passWindowLimit = 30
+
+    struct StandardWindow {
+        let element: AXUIElement
+        let frame: CGRect
+        /// Empty unless asked for.
+        let title: String
+    }
+
+    /// The app element's standard, not minimized, not full screen windows, in the order
+    /// the app lists them, looking at `passWindowLimit` windows at most. Nil when the
+    /// app doesn't answer at some point, so a caller can tell a partial list from a
+    /// whole one; the first unanswered message ends it. Set the app element's messaging
+    /// timeout first; each window gets it here.
+    func standardWindows(withTitles: Bool = false) -> [StandardWindow]? {
+        guard let windows else { return nil }
+        var standard: [StandardWindow] = []
+        for window in windows.prefix(Self.passWindowLimit) {
+            AXUIElementSetMessagingTimeout(window, Self.messagingTimeout)
+            guard let subrole = window.string(kAXSubroleAttribute),
+                  let minimized = window.flag(kAXMinimizedAttribute),
+                  let fullScreen = window.flag(fullScreenAttribute)
+            else { return nil }
+            guard subrole == kAXStandardWindowSubrole, !minimized, !fullScreen else { continue }
+            guard let frame = window.frame, let title = withTitles ? window.string(kAXTitleAttribute) : "" else { return nil }
+            standard.append(StandardWindow(element: window, frame: frame, title: title))
+        }
+        return standard
     }
 
     /// The app element's focused window. Also answers for an app that isn't in front.
