@@ -3,7 +3,7 @@ import MindowCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let windows = WindowManager()
+    let windows = WindowManager.shared
     let updates = UpdateChecker()
     lazy var settings = SettingsWindowController(updates: updates)
     private var dragSnap: DragSnap?
@@ -39,6 +39,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // An excluded app can already be in front at launch; no activation follows.
         Shortcuts.frontmost.update(NSWorkspace.shared.frontmostApplication)
+    }
+
+    /// `mindow://` URLs (`URLCommand`). Anything Mindow can't do beeps and nothing else
+    /// happens; layouts don't exist yet, so a layout URL is one of those.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            switch URLCommand(url) {
+            case .action(let action): windows.performOnFrontmost(action)
+            case .layout, nil: NSSound.beep()
+            }
+        }
     }
 
     /// With the menu bar icon hidden, opening the app again is the only way back to settings.

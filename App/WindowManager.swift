@@ -26,6 +26,8 @@ private func didMove(_ applied: CGRect?, from current: CGRect) -> Bool {
 /// AX coordinates; `MindowCore` does the math.
 @MainActor
 final class WindowManager {
+    /// One instance for the app delegate and App Intents, which the system creates on its own.
+    static let shared = WindowManager()
     private var cycle = RepeatCycle()
     private var cycleWindow: AXUIElement?
     private var history = MoveHistory<AXUIElement>()
@@ -152,6 +154,14 @@ final class WindowManager {
             }
             cycle.record(action, placement: .init(frame: applied, step: target.step))
         }
+    }
+
+    /// URLs and the Shortcuts app act on the app in front. Opening a URL can bring
+    /// Mindow itself forward, and it has no window to move, so then the app before it.
+    /// Like the menu, this ignores pause: pausing only turns the keys off.
+    func performOnFrontmost(_ action: WindowAction) {
+        let front = NSWorkspace.shared.frontmostApplication
+        perform(action, in: front == NSRunningApplication.current ? Shortcuts.frontmost.lastOther : front)
     }
 
     /// Places a window dropped by drag snap, found by its owner and its frame at the
