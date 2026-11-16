@@ -15,10 +15,16 @@ enum Shortcuts {
     /// Spectacle has no such action, so it has no default and an import never sets it.
     static let togglePause = KeyboardShortcuts.Name("TogglePause")
     static let togglePauseTitle = "Pause Shortcuts"
-    /// Every Mindow shortcut with its title, Pause first and then the actions in
-    /// `allCases` order, which is the order a conflict warning lists the others in.
-    static let titled: [(name: KeyboardShortcuts.Name, title: String)] =
-        [(togglePause, togglePauseTitle)] + WindowAction.allCases.compactMap { action in names[action].map { ($0, action.title) } }
+    /// Every Mindow shortcut with its title, Pause first, then the actions in
+    /// `allCases` order, then the layouts in theirs, which is the order a conflict
+    /// warning lists the others in.
+    static var titled: [(name: KeyboardShortcuts.Name, title: String)] {
+        [(togglePause, togglePauseTitle)]
+            + WindowAction.allCases.compactMap { action in names[action].map { ($0, action.title) } }
+            + LayoutLibrary.shared.snapshots.layouts.compactMap { layout in layoutNames[layout.id].map { ($0, "Layout \(layout.name)") } }
+    }
+    /// The saved layouts' shortcut names by layout id, kept in step by `syncLayouts`.
+    private(set) static var layoutNames: [String: KeyboardShortcuts.Name] = [:]
     static let pause = ShortcutPause()
     static let frontmost = FrontmostApp()
 
@@ -29,11 +35,34 @@ enum Shortcuts {
         KeyboardShortcuts.onKeyDown(for: togglePause) { pause.toggle() }
     }
 
-    /// Turns the window action shortcuts on or off by `ExcludedApps.allowsActionShortcuts`;
-    /// TogglePause is never touched. Registration that failed earlier is dropped, so
-    /// enabling again retries it without adding a second handler.
+    /// `Layout_<id>`, the UserDefaults key `KeyboardShortcuts_Layout_<id>`.
+    static func layoutName(_ id: String) -> KeyboardShortcuts.Name {
+        KeyboardShortcuts.Name("Layout_\(id)")
+    }
+
+    /// Adds a handler for each layout not seen yet, and drops the handler and the
+    /// recorded shortcut of each layout gone, so a deleted layout's key is free again.
+    /// Layout shortcuts then follow pause and exclusion like the action shortcuts.
+    static func syncLayouts(_ ids: [String]) {
+        for (id, name) in layoutNames where !ids.contains(id) {
+            KeyboardShortcuts.removeHandler(for: name)
+            KeyboardShortcuts.setShortcut(nil, for: name)
+            layoutNames[id] = nil
+        }
+        for id in ids where layoutNames[id] == nil {
+            let name = layoutName(id)
+            KeyboardShortcuts.onKeyDown(for: name) { Task { await LayoutLibrary.shared.restore(id: id) } }
+            layoutNames[id] = name
+        }
+        sync()
+    }
+
+    /// Turns the window action and layout shortcuts on or off by
+    /// `ExcludedApps.allowsActionShortcuts`; TogglePause is never touched. Registration
+    /// that failed earlier is dropped, so enabling again retries it without adding a
+    /// second handler.
     static func sync() {
-        let actionNames = Array(names.values)
+        let actionNames = Array(names.values) + Array(layoutNames.values)
         if ExcludedApps.stored.allowsActionShortcuts(paused: pause.isPaused, frontmost: frontmost.bundleID) {
             KeyboardShortcuts.enable(actionNames)
         } else {

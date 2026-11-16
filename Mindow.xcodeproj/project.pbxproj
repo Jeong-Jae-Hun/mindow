@@ -19,6 +19,7 @@
 		B5A23269A80EC96E4F77102A /* SpectacleImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */; };
 		E21CE10C0E3689A90A444420 /* WindowIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995A35CBADD7BFD3F41EB957 /* WindowIntents.swift */; };
 		E483D75A411321D2E56BB09D /* Shortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6727C2AF95919FB165B7C044 /* Shortcuts.swift */; };
+		E8EB302830FE4E937220B7F6 /* LayoutLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEFB27E3CF2B8F0BD76E98B9 /* LayoutLibrary.swift */; };
 		ED7B03561D9C3A93C1828077 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0EE85A2F7D1C75E8D563FA9 /* UpdateChecker.swift */; };
 		F639D4212B2EDBF60E142EF5 /* MindowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40545EDA75EEC02F3900FED /* MindowApp.swift */; };
 		F939A30AA0FA78BC921A76F7 /* WindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51098E754D1E8632882E50C4 /* WindowManager.swift */; };
@@ -39,6 +40,7 @@
 		E0EE85A2F7D1C75E8D563FA9 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		E531D3407C954CF0C7D26BE8 /* DragSnap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragSnap.swift; sourceTree = "<group>"; };
 		EB3EA23FA447AF88C9C80B76 /* MindowCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MindowCore; path = MindowCore; sourceTree = SOURCE_ROOT; };
+		EEFB27E3CF2B8F0BD76E98B9 /* LayoutLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutLibrary.swift; sourceTree = "<group>"; };
 		EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		EFC3DDCCD493B72CA5FFF004 /* DisplayRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayRestore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -82,6 +84,7 @@
 				EFC3DDCCD493B72CA5FFF004 /* DisplayRestore.swift */,
 				E531D3407C954CF0C7D26BE8 /* DragSnap.swift */,
 				0596EDE4F43AA110FB2094E5 /* Info.plist */,
+				EEFB27E3CF2B8F0BD76E98B9 /* LayoutLibrary.swift */,
 				B40545EDA75EEC02F3900FED /* MindowApp.swift */,
 				37649C61739B946CBB1A0836 /* SettingsView.swift */,
 				6727C2AF95919FB165B7C044 /* Shortcuts.swift */,
@@ -181,6 +184,7 @@
 				8B90658F5493687B2A88B7F3 /* AutoPlacement.swift in Sources */,
 				91685704EDC923FD19E1461A /* DisplayRestore.swift in Sources */,
 				AF0307CA924D1A64CC06CDEA /* DragSnap.swift in Sources */,
+				E8EB302830FE4E937220B7F6 /* LayoutLibrary.swift in Sources */,
 				F639D4212B2EDBF60E142EF5 /* MindowApp.swift in Sources */,
 				3EA23B80EA69BEBA459E9FE6 /* SettingsView.swift in Sources */,
 				E483D75A411321D2E56BB09D /* Shortcuts.swift in Sources */,

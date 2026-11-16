@@ -20,8 +20,6 @@ final class DisplayRestore {
     private static let settleDelay: Duration = .seconds(1.5)
     /// Mindow actions often come in runs (a cycle); one pass after the last of them.
     private static let afterMoveDelay: Duration = .seconds(1)
-    private static let appLimit = 60
-    private static let windowLimit = 30
 
     private var memory = DisplayMemory<pid_t, AXUIElement>(current: .active)
     private var settling: Task<Void, Never>?
@@ -71,7 +69,7 @@ final class DisplayRestore {
     /// recording waits until it is done.
     private func settle() async {
         let record = memory.settle(on: .active)
-        for (pid, frames) in record.prefix(Self.appLimit) {
+        for (pid, frames) in record.prefix(AXUIElement.passAppLimit) {
             await Task.yield()
             // Cancelled by a newer change, whose own settle resumes recording.
             guard !Task.isCancelled else { return }
@@ -84,7 +82,7 @@ final class DisplayRestore {
             let element = AXUIElementCreateApplication(pid)
             AXUIElementSetMessagingTimeout(element, AXUIElement.messagingTimeout)
             // A window closed since it was recorded is no longer listed; it isn't asked.
-            for window in (element.windows ?? []).filter({ frames[$0] != nil }).prefix(Self.windowLimit) {
+            for window in (element.windows ?? []).filter({ frames[$0] != nil }).prefix(AXUIElement.passWindowLimit) {
                 guard let frame = frames[window] else { continue }
                 AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
                 // The first unanswered message ends this app, so a hung app costs one timeout.
@@ -120,34 +118,15 @@ final class DisplayRestore {
         let apps = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && $0 != NSRunningApplication.current && !excluded.contains($0.bundleIdentifier)
         }
-        for app in apps.prefix(Self.appLimit) {
+        for app in apps.prefix(AXUIElement.passAppLimit) {
             await Task.yield()
             guard isEnabled, !memory.isSettling, !app.isTerminated, !ExcludedApps.stored.contains(app.bundleIdentifier) else { continue }
             let element = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(element, AXUIElement.messagingTimeout)
-            guard let windows = element.windows else { continue }
-            var frames: [AXUIElement: CGRect] = [:]
-            var answered = true
-            for window in windows.prefix(Self.windowLimit) {
-                AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
-                guard let subrole = window.string(kAXSubroleAttribute),
-                      let minimized = window.flag(kAXMinimizedAttribute),
-                      let fullScreen = window.flag(fullScreenAttribute)
-                else {
-                    answered = false
-                    break
-                }
-                guard subrole == kAXStandardWindowSubrole, !minimized, !fullScreen else { continue }
-                guard let frame = window.frame else {
-                    answered = false
-                    break
-                }
-                frames[window] = frame
-            }
             // An app that stopped answering keeps what it had; a partial list would drop windows.
-            if answered {
-                memory.record(frames, of: app.processIdentifier, in: .active)
-            }
+            guard let windows = element.standardWindows() else { continue }
+            let frames = Dictionary(windows.map { ($0.element, $0.frame) }) { _, last in last }
+            memory.record(frames, of: app.processIdentifier, in: .active)
         }
     }
 }
