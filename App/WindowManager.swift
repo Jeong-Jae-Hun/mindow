@@ -219,12 +219,13 @@ private extension AXUIElement {
     }
 
     /// False when the element doesn't have the attribute (most windows lack
-    /// AXFullScreen), nil when it can't be read, as from an app that stopped responding.
+    /// AXFullScreen), nil when it can't be read (an app that stopped responding, or
+    /// one that has the attribute but gives no value).
     func flag(_ name: String) -> Bool? {
         var raw: CFTypeRef?
         switch AXUIElementCopyAttributeValue(self, name as CFString, &raw) {
         case .success: return raw as? Bool
-        case .attributeUnsupported, .noValue: return false
+        case .attributeUnsupported: return false
         default: return nil
         }
     }
