@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Preferences.showMenuBarIcon: true,
             Preferences.cycleOnRepeat: true,
             Preferences.dragSnap: true,
+            Preferences.showHUD: true,
             Preferences.checkForUpdates: true,
         ])
         Shortcuts.register { [windows] action in windows.perform(action) }

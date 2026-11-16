@@ -67,6 +67,8 @@ enum Preferences {
     static let excludedApps = "mindow.excludedApps"
     /// Dragging a window to a screen edge places it there.
     static let dragSnap = "mindow.dragSnap"
+    /// A short label names each action that moved a window (`ActionHUD`).
+    static let showHUD = "mindow.showHUD"
     /// Per Mac, like the menu bar icon: a settings export leaves both out.
     static let checkForUpdates = "mindow.checkForUpdates"
     static let lastUpdateCheck = "mindow.lastUpdateCheck"
