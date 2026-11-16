@@ -27,6 +27,7 @@ final class WindowManager {
     private var cycle = RepeatCycle()
     private var cycleWindow: AXUIElement?
     private var history = MoveHistory<AXUIElement>()
+    private var maximized = MaximizeMemory<AXUIElement>()
 
     func perform(_ action: WindowAction) {
         var focused: CFTypeRef?
@@ -85,11 +86,21 @@ final class WindowManager {
             let previous = remembered ? cycle.previousStep(for: action, current: current) : nil
             let gap = CGFloat(UserDefaults.standard.double(forKey: Preferences.gap))
             let context = WindowLayout.Context(window: current, screen: screen, previousStep: previous, gap: gap)
-            guard let target = WindowLayout.placement(for: action, in: context),
-                  let applied = window.setFrame(target.frame, within: screen)
-            else { return }
+            guard let target = WindowLayout.placement(for: action, in: context) else { return }
+            // Fullscreen again on a window Mindow maximized goes back to the frame it had.
+            // Like undo, that frame may be on another display, so fit it to its own screen.
+            let restored = action == .moveToFullscreen
+                ? maximized.restoreFrame(for: window, at: (current, target.frame))
+                : nil
+            let destination = restored.flatMap { WindowLayout.screenIndex(for: $0, among: screens) }.map { screens[$0] } ?? screen
+            guard let applied = window.setFrame(restored ?? target.frame, within: destination) else { return }
             if didMove(applied, from: current) {
                 history.record(current, for: window)
+                if restored != nil {
+                    maximized.forget(window)
+                } else if action == .moveToFullscreen {
+                    maximized.remember(current, for: window)
+                }
             }
             cycle.record(action, placement: .init(frame: applied, step: target.step))
         }
