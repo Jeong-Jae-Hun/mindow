@@ -95,9 +95,9 @@ final class AutoPlacement {
             guard AXObserverAddNotification(observer, element, kAXWindowCreatedNotification as CFString, refcon) == .success else { continue }
             CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
             observers[pid] = observer
-            if launched, let rule = AppRules.stored.rule(for: app.bundleIdentifier) {
+            if launched, let bundleID = app.bundleIdentifier {
                 for window in element.windows {
-                    Task { await windows.autoPlace(window, by: rule) }
+                    Task { await windows.autoPlace(window, of: bundleID) }
                 }
             }
             return
@@ -109,16 +109,14 @@ final class AutoPlacement {
         CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
     }
 
-    /// The rule and exclusion are read again here: an edit since the observer was added
-    /// wins, even before `sync` ran.
+    /// `autoPlace` reads the rule and the exclusion itself after waiting, so an edit
+    /// since the observer was added wins, even before `sync` ran.
     private func created(_ window: AXUIElement) {
         var pid: pid_t = 0
         guard AXUIElementGetPid(window, &pid) == .success,
-              let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
-              !ExcludedApps.stored.contains(bundleID),
-              let rule = AppRules.stored.rule(for: bundleID)
+              let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
         else { return }
-        Task { await windows.autoPlace(window, by: rule) }
+        Task { await windows.autoPlace(window, of: bundleID) }
     }
 }
 

@@ -221,28 +221,37 @@ final class WindowManager {
     ///
     /// New windows often size or place themselves right after they appear, which would
     /// undo a move made at once, so it waits `autoPlaceDelay` first. An app that still
-    /// moves the window afterwards gets one more try, not recorded again.
-    func autoPlace(_ window: AXUIElement, by rule: AppRule) async {
-        try? await Task.sleep(for: Self.autoPlaceDelay)
+    /// moves the window afterwards gets one more try. Undo keeps the frame from before
+    /// the first move that happened, whichever pass made it.
+    func autoPlace(_ window: AXUIElement, of bundleID: String) async {
         AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
-        // Each read that fails ends it, so a hung app costs one timeout, not four.
-        guard AXIsProcessTrusted(), window.string(kAXSubroleAttribute) == kAXStandardWindowSubrole,
-              window.flag(kAXMinimizedAttribute) == false, window.flag(fullScreenAttribute) == false,
-              let current = window.frame
-        else { return }
-        let screens = NSScreen.axFrames.map(\.visible)
-        guard let placement = rule.placement(for: current, among: screens, gap: Preferences.gapValue),
-              let applied = window.setFrame(placement.frame, within: screens[placement.screen])
-        else { return }
-        if didMove(applied, from: current) {
-            history.record(current, for: window)
-            if rule.action == .moveToFullscreen {
-                maximized.remember(current, for: window)
+        var applied: CGRect?
+        var recorded = false
+        for delay in [Self.autoPlaceDelay, Self.autoPlaceDelay * 2] {
+            try? await Task.sleep(for: delay)
+            // Read again after every wait, so a rule removed or an app excluded meanwhile
+            // wins. Each read that fails ends it: a hung app costs one timeout, not four.
+            guard AXIsProcessTrusted(), !ExcludedApps.stored.contains(bundleID),
+                  let rule = AppRules.stored.rule(for: bundleID),
+                  window.string(kAXSubroleAttribute) == kAXStandardWindowSubrole,
+                  window.flag(kAXMinimizedAttribute) == false, window.flag(fullScreenAttribute) == false,
+                  let current = window.frame
+            else { return }
+            // The second pass is only for a window the app moved off the first one's frame.
+            if let applied, WindowLayout.isClose(current, applied) { return }
+            let screens = NSScreen.axFrames.map(\.visible)
+            guard let placement = rule.placement(for: current, among: screens, gap: Preferences.gapValue),
+                  let next = window.setFrame(placement.frame, within: screens[placement.screen])
+            else { return }
+            if !recorded, didMove(next, from: current) {
+                recorded = true
+                history.record(current, for: window)
+                if rule.action == .moveToFullscreen {
+                    maximized.remember(current, for: window)
+                }
             }
+            applied = next
         }
-        try? await Task.sleep(for: Self.autoPlaceDelay * 2)
-        guard let now = window.frame, !WindowLayout.isClose(now, applied) else { return }
-        _ = window.setFrame(placement.frame, within: screens[placement.screen])
     }
 
     private static let autoPlaceDelay: Duration = .seconds(0.15)

@@ -34,6 +34,8 @@ struct AppRulesTests {
             ["bundleID": slack, "action": "SplitWithPrevious"],
             ["bundleID": slack, "action": "MoveToLeftHalf", "display": -1],
             ["bundleID": slack, "action": "MoveToLeftHalf", "display": "1"],
+            ["bundleID": slack, "action": "MoveToLeftHalf", "display": Int.max],
+            ["bundleID": slack, "action": "MoveToLeftHalf", "display": 32],
             ["bundleID": "", "action": "MoveToLeftHalf"],
             ["action": "MoveToLeftHalf"],
             "MoveToLeftHalf",

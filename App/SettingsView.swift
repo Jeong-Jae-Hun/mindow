@@ -224,9 +224,12 @@ private struct AutoPlacementSection: View {
                         }
                         Picker("Display", selection: binding(rule, \.display)) {
                             Text("Current Display").tag(Int?.none)
-                            // A rule for a display that isn't connected now keeps its choice.
-                            ForEach(0..<max(NSScreen.screens.count, (rule.display ?? 0) + 1), id: \.self) { index in
+                            ForEach(0..<NSScreen.screens.count, id: \.self) { index in
                                 Text("Display \(index + 1)").tag(Int?.some(index))
+                            }
+                            // A display that isn't connected now keeps its choice as one more item.
+                            if let display = rule.display, display >= NSScreen.screens.count {
+                                Text("Display \(display + 1) (not connected)").tag(Int?.some(display))
                             }
                         }
                     }
