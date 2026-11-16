@@ -139,7 +139,6 @@ struct SettingsView: View {
         }
     }
 
-    /// A duplicated shortcut gets a warning in front of the recorder on every row that has it.
     private func recorder(_ title: String, name: KeyboardShortcuts.Name) -> some View {
         LabeledContent(title) {
             HStack {

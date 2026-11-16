@@ -1,5 +1,6 @@
-/// Shortcuts recorded more than once inside Mindow. A Carbon hot key belongs to one
-/// registration, so only one of the duplicated actions would ever run. Shortcuts macOS
+/// Shortcuts recorded more than once inside Mindow. KeyboardShortcuts runs every name
+/// whose shortcut matches the press, in no fixed order, so one key would move the
+/// window twice or pause before or after moving it. Shortcuts macOS
 /// holds are the recorder's job: KeyboardShortcuts asks before saving one of them.
 public enum ShortcutConflicts {
     /// Each name whose binding another name also has, mapped to those other names.

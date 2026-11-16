@@ -48,7 +48,6 @@ enum Shortcuts {
         }
     }
 
-    /// Names whose shortcut another Mindow shortcut also has, mapped to the others' titles.
     static func conflicts() -> [KeyboardShortcuts.Name: [String]] {
         let bindings = Dictionary(uniqueKeysWithValues: titled.map { entry in
             (entry.name, KeyboardShortcuts.getShortcut(for: entry.name).map {
