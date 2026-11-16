@@ -41,6 +41,8 @@ struct SettingsView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     @State private var conflicts = Shortcuts.conflicts()
+    /// Bumped by a settings import, so sections that keep a copy of a list read it again.
+    @State private var imports = 0
     private let layouts = LayoutLibrary.shared
 
     var body: some View {
@@ -72,8 +74,8 @@ struct SettingsView: View {
                     }
                 }
             }
-            ExcludedAppsSection()
-            AutoPlacementSection()
+            ExcludedAppsSection().id(imports)
+            AutoPlacementSection().id(imports)
             Section {
                 ForEach(layouts.snapshots.layouts, id: \.id) { layout in
                     VStack(alignment: .leading) {
@@ -134,6 +136,14 @@ struct SettingsView: View {
                     Text("Open Mindow again from Applications to get back here.")
                         .foregroundStyle(.secondary).font(.caption)
                 }
+                HStack {
+                    Button("Export Settings…") { SettingsTransfer.export() }
+                    Button("Import Settings…") {
+                        if SettingsTransfer.importFile() { imports += 1 }
+                    }
+                }
+                Text("Saves shortcuts, layouts, excluded apps, auto placement and the window options for another Mac. The menu bar icon, launch at login and update checks stay per Mac.")
+                    .foregroundStyle(.secondary).font(.caption)
                 Toggle("Check for updates", isOn: $checkForUpdates)
                     .onChange(of: checkForUpdates) { Task { await updates.refresh() } }
                 if let release = updates.available {

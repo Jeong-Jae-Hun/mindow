@@ -18,6 +18,7 @@ enum Shortcuts {
     /// Every Mindow shortcut with its title, Pause first, then the actions in
     /// `allCases` order, then the layouts in theirs, which is the order a conflict
     /// warning lists the others in.
+    /// Also the shortcuts a settings file holds.
     static var titled: [(name: KeyboardShortcuts.Name, title: String)] {
         [(togglePause, togglePauseTitle)]
             + WindowAction.allCases.compactMap { action in names[action].map { ($0, action.title) } }
@@ -37,7 +38,7 @@ enum Shortcuts {
 
     /// `Layout_<id>`, the UserDefaults key `KeyboardShortcuts_Layout_<id>`.
     static func layoutName(_ id: String) -> KeyboardShortcuts.Name {
-        KeyboardShortcuts.Name("Layout_\(id)")
+        KeyboardShortcuts.Name(SettingsFile.layoutPrefix + id)
     }
 
     /// Adds a handler for each layout not seen yet, and drops the handler and the
@@ -78,14 +79,14 @@ enum Shortcuts {
     }
 
     static func conflicts() -> [KeyboardShortcuts.Name: [String]] {
-        let bindings = Dictionary(uniqueKeysWithValues: titled.map { entry in
-            (entry.name, KeyboardShortcuts.getShortcut(for: entry.name).map {
-                KeyBinding(carbonKeyCode: $0.carbonKeyCode, carbonModifiers: $0.carbonModifiers)
-            })
-        })
+        let bindings = Dictionary(uniqueKeysWithValues: titled.map { ($0.name, binding(for: $0.name)) })
         return ShortcutConflicts.find(in: bindings).mapValues { others in
             titled.filter { others.contains($0.name) }.map(\.title)
         }
+    }
+
+    static func binding(for name: KeyboardShortcuts.Name) -> KeyBinding? {
+        KeyboardShortcuts.getShortcut(for: name).map { KeyBinding(carbonKeyCode: $0.carbonKeyCode, carbonModifiers: $0.carbonModifiers) }
     }
 
     nonisolated static func shortcut(_ binding: KeyBinding) -> KeyboardShortcuts.Shortcut {
