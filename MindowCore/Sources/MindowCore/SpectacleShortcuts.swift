@@ -29,7 +29,9 @@ public enum SpectacleShortcuts {
         let entries = try JSONDecoder().decode([Entry].self, from: data)
         var result = ImportResult(bindings: [:], skipped: [])
         for entry in entries {
-            guard let action = WindowAction(rawValue: entry.name),
+            // Only Spectacle's own actions: a file naming Mindow-only actions is not
+            // Spectacle's, and importing must not overwrite shortcuts Spectacle never had.
+            guard let action = WindowAction(rawValue: entry.name), defaultBindings[action] != nil,
                   let binding = entry.binding.flatMap({ KeyBinding(spectacle: $0) })
             else {
                 result.skipped.append("\(entry.name): \(entry.binding ?? "none")")
