@@ -4,12 +4,12 @@ import MindowCore
 
 // ─── Accessibility ───
 
-private let positionAttribute = AXAttribute<CGPoint>(name: kAXPositionAttribute, type: .cgPoint)
-private let sizeAttribute = AXAttribute<CGSize>(name: kAXSizeAttribute, type: .cgSize)
+let positionAttribute = AXAttribute<CGPoint>(name: kAXPositionAttribute, type: .cgPoint)
+let sizeAttribute = AXAttribute<CGSize>(name: kAXSizeAttribute, type: .cgSize)
 /// A window in its own macOS Space; it can't be moved or resized.
-private let fullScreenAttribute = "AXFullScreen"
+let fullScreenAttribute = "AXFullScreen"
 
-private struct AXAttribute<Value: BitwiseCopyable> {
+struct AXAttribute<Value: BitwiseCopyable> {
     let name: String
     let type: AXValueType
 }
@@ -30,7 +30,12 @@ final class WindowManager {
     static let shared = WindowManager()
     private var cycle = RepeatCycle()
     private var cycleWindow: AXUIElement?
-    private var history = MoveHistory<AXUIElement>()
+    /// Every change is a window Mindow moved (or an undo step), which `onMove` hears.
+    private var history = MoveHistory<AXUIElement>() {
+        didSet { onMove?() }
+    }
+    /// Display restore records frames again soon after Mindow moves a window.
+    var onMove: (@MainActor () -> Void)?
     private var maximized = MaximizeMemory<AXUIElement>()
     /// Windows `autoPlace` is waiting on or moving.
     private var autoPlacing: Set<AXUIElement> = []
@@ -288,15 +293,14 @@ extension AXUIElement {
     /// main thread for the system's default six seconds.
     static let messagingTimeout: Float = 0.25
 
-    /// The app element's windows, empty when it doesn't answer.
-    var windows: [AXUIElement] {
+    /// The app element's windows, nil when it doesn't answer, so a caller that keeps
+    /// what it read can tell an app without windows from one that is hung.
+    var windows: [AXUIElement]? {
         var all: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(self, kAXWindowsAttribute as CFString, &all) == .success else { return [] }
+        guard AXUIElementCopyAttributeValue(self, kAXWindowsAttribute as CFString, &all) == .success else { return nil }
         return all as? [AXUIElement] ?? []
     }
-}
 
-private extension AXUIElement {
     /// The app element's focused window. Also answers for an app that isn't in front.
     var focusedWindow: AXUIElement? {
         var focused: CFTypeRef?
@@ -312,10 +316,15 @@ private extension AXUIElement {
         return AXFlag.value(AXUIElementCopyAttributeValue(self, name as CFString, &raw), raw)
     }
 
+    /// Empty for an attribute the element doesn't have, nil when the read failed, as
+    /// `AXFlag.value` tells them apart.
     func string(_ name: String) -> String? {
         var raw: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(self, name as CFString, &raw) == .success else { return nil }
-        return raw as? String
+        switch AXUIElementCopyAttributeValue(self, name as CFString, &raw) {
+        case .success: return raw as? String ?? ""
+        case .attributeUnsupported, .noValue: return ""
+        default: return nil
+        }
     }
 
     var frame: CGRect? {
@@ -325,17 +334,18 @@ private extension AXUIElement {
 
     /// Sets size, position, then size again (the allowed size can change on another
     /// display) and reads the frame back. Apps with a minimum size may keep a larger
-    /// one, so the result is shifted back on screen. Returns the frame the window
-    /// actually has, or nil when it cannot be read.
+    /// one, so the result is shifted back on `screen`; nil leaves it where the app put
+    /// it. Returns the frame the window actually has, or nil when it cannot be read.
     ///
     /// A write the app never answered (`.cannotComplete`, also what a messaging timeout
     /// gives) stops it: every further message would wait just as long on the main thread.
-    func setFrame(_ target: CGRect, within screen: CGRect) -> CGRect? {
+    func setFrame(_ target: CGRect, within screen: CGRect?) -> CGRect? {
         guard set(sizeAttribute, to: target.size) != .cannotComplete,
               set(positionAttribute, to: target.origin) != .cannotComplete,
               set(sizeAttribute, to: target.size) != .cannotComplete,
               let applied = frame
         else { return nil }
+        guard let screen else { return applied }
         let fitted = WindowLayout.fitInside(applied, screen: screen)
         guard fitted.origin != applied.origin else { return applied }
         guard set(positionAttribute, to: fitted.origin) != .cannotComplete else { return nil }

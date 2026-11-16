@@ -34,6 +34,7 @@ struct SettingsView: View {
     @AppStorage(Preferences.gap) private var gap = 0.0
     @AppStorage(Preferences.dragSnap) private var dragSnap = true
     @AppStorage(Preferences.showHUD) private var showHUD = true
+    @AppStorage(Preferences.restoreOnDisplayChange) private var restoreOnDisplayChange = true
     @AppStorage(Preferences.checkForUpdates) private var checkForUpdates = true
     @State private var trusted = AXIsProcessTrusted()
     @State private var spectacleRunning = SpectacleShortcuts.isSpectacleRunning
@@ -87,6 +88,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary).font(.caption)
                 }
                 Toggle("Show a brief label after each action", isOn: $showHUD)
+                Toggle("Restore windows when displays change", isOn: $restoreOnDisplayChange)
                 Toggle("Show icon in menu bar", isOn: $showMenuBarIcon)
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
