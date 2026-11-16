@@ -39,7 +39,18 @@ struct SpectacleShortcutsTests {
         #expect(result.skipped == ["MoveToFrontWindow: alt+cmd+w", "MoveToFullscreen: none"])
     }
 
-    @Test("JSON이 아니면 오류를 던진다")
+    @Test("Spectacle에 없는 Mindow 전용 동작 이름은 가져오지 않고 건너뛴다")
+    func 전용동작건너뛰기() throws {
+        let json = """
+        [{"shortcut_name":"MoveToNextFourth","shortcut_key_binding":"ctrl+alt+cmd+right"},
+         {"shortcut_name":"MoveToCenter","shortcut_key_binding":"alt+cmd+c"}]
+        """
+        let result = try SpectacleShortcuts.parse(Data(json.utf8))
+        #expect(result.bindings == [.moveToCenter: KeyBinding(carbonKeyCode: 8, carbonModifiers: 2304)])
+        #expect(result.skipped == ["MoveToNextFourth: ctrl+alt+cmd+right"])
+    }
+
+        @Test("JSON이 아니면 오류를 던진다")
     func 깨진파일() {
         #expect(throws: (any Error).self) { try SpectacleShortcuts.parse(Data("nope".utf8)) }
     }

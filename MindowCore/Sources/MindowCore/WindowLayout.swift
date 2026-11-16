@@ -79,12 +79,12 @@ public enum WindowLayout {
         }
         let landscape = s.width >= s.height
         switch action {
-        case .moveToNextThird: return cell(context, count: 3, rows: !landscape, offset: 1)
-        case .moveToPreviousThird: return cell(context, count: 3, rows: !landscape, offset: -1)
-        case .moveToNextFourth: return cell(context, count: 4, rows: !landscape, offset: 1)
-        case .moveToPreviousFourth: return cell(context, count: 4, rows: !landscape, offset: -1)
-        case .moveToNextRowThird: return cell(context, count: 3, rows: true, offset: 1)
-        case .moveToPreviousRowThird: return cell(context, count: 3, rows: true, offset: -1)
+        case .moveToNextThird: return cell(context, (count: 3, rows: !landscape, offset: 1))
+        case .moveToPreviousThird: return cell(context, (count: 3, rows: !landscape, offset: -1))
+        case .moveToNextFourth: return cell(context, (count: 4, rows: !landscape, offset: 1))
+        case .moveToPreviousFourth: return cell(context, (count: 4, rows: !landscape, offset: -1))
+        case .moveToNextRowThird: return cell(context, (count: 3, rows: true, offset: 1))
+        case .moveToPreviousRowThird: return cell(context, (count: 3, rows: true, offset: -1))
         default: return nil
         }
     }
@@ -136,8 +136,9 @@ public enum WindowLayout {
     /// size can land on the same frame for two cells. Otherwise a window spanning the
     /// full cross axis sits in the cell it overlaps most, and any other window starts
     /// at the first (next) or last (previous) cell.
-    private static func cell(_ context: Context, count: Int, rows: Bool, offset: Int) -> Placement {
+    private static func cell(_ context: Context, _ walk: (count: Int, rows: Bool, offset: Int)) -> Placement {
         let (window, s) = (context.window, context.screen)
+        let (count, rows, offset) = walk
         let n = CGFloat(count)
         let cells = (0..<count).map { i -> CGRect in
             rows
