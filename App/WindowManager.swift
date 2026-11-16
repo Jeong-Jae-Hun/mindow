@@ -123,10 +123,33 @@ final class WindowManager {
     /// dragged along the top edge can drop where it already filled the screen.
     func snap(_ target: SnapZone.Target, window dropped: (pid: pid_t, frame: CGRect)) {
         let screens = NSScreen.axFrames.map(\.visible)
-        guard AXIsProcessTrusted(), screens.indices.contains(target.screen),
-              let window = AXUIElement.window(of: dropped.pid, at: dropped.frame),
-              let current = window.frame
+        guard AXIsProcessTrusted(), screens.indices.contains(target.screen) else { return }
+
+        // Find the dropped window among its app's windows by frame. Every message waits
+        // at most `messagingTimeout`, and the search stops at the first one left
+        // unanswered, so an app that hangs midway costs one more timeout, not one per window.
+        let app = AXUIElementCreateApplication(dropped.pid)
+        AXUIElementSetMessagingTimeout(app, AXUIElement.messagingTimeout)
+        var all: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &all) == .success,
+              let windows = all as? [AXUIElement]
         else { return }
+        var matches: [AXUIElement] = []
+        for window in windows {
+            AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
+            guard let frame = window.frame else { return }
+            if WindowLayout.isClose(frame, dropped.frame) { matches.append(window) }
+        }
+        // Two windows of one app on the same frame: only the focused one (the one just
+        // dragged, unless Command was held) can be told apart. Otherwise leave both alone.
+        var focused: CFTypeRef?
+        if matches.count > 1,
+           AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &focused) == .success,
+           let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() {
+            let window = unsafeDowncast(focused, to: AXUIElement.self)
+            matches = matches.contains(window) ? [window] : []
+        }
+        guard matches.count == 1, let window = matches.first, let current = window.frame else { return }
         let screen = screens[target.screen]
         let gap = Preferences.gapValue
         let context = WindowLayout.Context(window: current, screen: screen, previousStep: nil, gap: gap)
@@ -163,25 +186,6 @@ private extension AXUIElement {
     /// Upper bound per AX message, so an app that stopped responding can't hold the
     /// main thread for the system's default six seconds.
     static let messagingTimeout: Float = 0.25
-
-    /// The window of `pid` whose frame is `frame`. Each message waits at most
-    /// `messagingTimeout`, and the search stops at the first one that gets no answer
-    /// (an unreadable frame counts), so an app that hangs mid-search costs two
-    /// timeouts at most, not one per window.
-    static func window(of pid: pid_t, at frame: CGRect) -> AXUIElement? {
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, messagingTimeout)
-        var all: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &all) == .success,
-              let windows = all as? [AXUIElement]
-        else { return nil }
-        for window in windows {
-            AXUIElementSetMessagingTimeout(window, messagingTimeout)
-            guard let current = window.frame else { return nil }
-            if WindowLayout.isClose(current, frame) { return window }
-        }
-        return nil
-    }
 
     var frame: CGRect? {
         guard let origin = value(positionAttribute), let size = value(sizeAttribute) else { return nil }

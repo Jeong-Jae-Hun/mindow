@@ -14,17 +14,16 @@ import MindowCore
 final class DragSnap {
     private enum Gesture {
         case idle
-        /// The button went down; the window is looked up on the first drag event only,
-        /// so plain clicks cost nothing.
-        case pressed
         case tracking(Drag)
         /// Not a window drag (no window, an excluded app, a resize); wait for mouse up.
         case ignored
     }
 
     private struct Drag {
+        /// The window under the cursor when the button went down, with its frame then.
         let window: WindowListEntry
-        var lastRead: TimeInterval
+        /// Zero until the first read, so the first drag event reads right away.
+        var lastRead: TimeInterval = 0
         /// Screens as of the moment the window started moving; nil until then.
         var screens: [(frame: CGRect, visible: CGRect)]?
         var target: SnapZone.Target?
@@ -37,6 +36,9 @@ final class DragSnap {
     private let preview = SnapPreview()
     private var monitors: [Any] = []
     private var gesture = Gesture.idle
+    /// A read skipped by the throttle runs later, so a window that reached an edge and
+    /// stopped there, with no drag event after, still gets its preview.
+    private var pendingRead: Task<Void, Never>?
 
     init(windows: WindowManager) {
         self.windows = windows
@@ -79,66 +81,73 @@ final class DragSnap {
         } else {
             monitors.forEach(NSEvent.removeMonitor)
             monitors = []
-            gesture = .idle
-            preview.hide()
+            reset()
         }
     }
 
+    /// One window list read per click: the frame has to be taken before a drag moves it.
+    /// The frontmost normal-level window under the cursor; menus, panels and overlays
+    /// sit on other levels, and dragging one of them does not snap.
     private func mouseDown() {
-        gesture = .pressed
-        preview.hide()
+        reset()
+        let point = cursor
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        guard let window = list?.lazy.compactMap(WindowListEntry.init).first(where: { $0.frame.contains(point) }),
+              window.pid != ProcessInfo.processInfo.processIdentifier,
+              !ExcludedApps.stored.contains(NSRunningApplication(processIdentifier: window.pid)?.bundleIdentifier)
+        else {
+            gesture = .ignored
+            return
+        }
+        gesture = .tracking(Drag(window: window))
     }
 
     private func mouseDragged() {
-        switch gesture {
-        case .idle, .ignored:
-            return
-        case .pressed:
-            guard let window = WindowListEntry.under(cursor),
-                  window.pid != ProcessInfo.processInfo.processIdentifier,
-                  !ExcludedApps.stored.contains(NSRunningApplication(processIdentifier: window.pid)?.bundleIdentifier)
-            else {
-                gesture = .ignored
+        guard case .tracking(var drag) = gesture else { return }
+        if drag.screens == nil {
+            let now = ProcessInfo.processInfo.systemUptime
+            guard now - drag.lastRead >= Self.readInterval else {
+                if pendingRead == nil {
+                    pendingRead = Task { @MainActor [weak self] in
+                        try? await Task.sleep(for: .seconds(Self.readInterval))
+                        guard !Task.isCancelled else { return }
+                        self?.pendingRead = nil
+                        self?.mouseDragged()
+                    }
+                }
                 return
             }
-            gesture = .tracking(Drag(window: window, lastRead: ProcessInfo.processInfo.systemUptime))
-        case .tracking(var drag):
-            if drag.screens == nil {
-                let now = ProcessInfo.processInfo.systemUptime
-                guard now - drag.lastRead >= Self.readInterval else { return }
-                drag.lastRead = now
-                switch Self.hasMoved(drag.window) {
-                case nil:
-                    gesture = .ignored
-                    return
-                case false?:
-                    gesture = .tracking(drag)
-                    return
-                case true?:
-                    // Moving from here on; the window list is not read again in this drag.
-                    drag.screens = NSScreen.axFrames
-                }
+            drag.lastRead = now
+            switch Self.hasMoved(drag.window) {
+            case nil:
+                gesture = .ignored
+                return
+            case false?:
+                gesture = .tracking(drag)
+                return
+            case true?:
+                // Moving from here on; the window list is not read again in this drag.
+                drag.screens = NSScreen.axFrames
             }
-            guard let screens = drag.screens else { return }
-            let target = SnapZone.target(at: cursor, screens: screens.map(\.frame))
-            if target != drag.target {
-                drag.target = target
-                // Always the first step of the action, like the drop: a fresh start, not a repeat.
-                let frame = target.flatMap { target in
-                    WindowLayout.placement(
-                        for: target.action,
-                        in: .init(window: drag.window.frame, screen: screens[target.screen].visible, previousStep: nil, gap: Preferences.gapValue)
-                    )?.frame
-                }
-                if let frame { preview.show(frame) } else { preview.hide() }
-            }
-            gesture = .tracking(drag)
         }
+        guard let screens = drag.screens else { return }
+        let target = SnapZone.target(at: cursor, screens: screens.map(\.frame))
+        if target != drag.target {
+            drag.target = target
+            // Always the first step of the action, like the drop: a fresh start, not a repeat.
+            let frame = target.flatMap { target in
+                WindowLayout.placement(
+                    for: target.action,
+                    in: .init(window: drag.window.frame, screen: screens[target.screen].visible, previousStep: nil, gap: Preferences.gapValue)
+                )?.frame
+            }
+            if let frame { preview.show(frame) } else { preview.hide() }
+        }
+        gesture = .tracking(drag)
     }
 
     private func mouseUp() {
-        defer { gesture = .idle }
-        preview.hide()
+        defer { reset() }
         guard case .tracking(let drag) = gesture else { return }
         // A short flick can end before a throttled read saw the window move.
         let screens = drag.screens ?? (Self.hasMoved(drag.window) == true ? NSScreen.axFrames : nil)
@@ -147,6 +156,13 @@ final class DragSnap {
               let frame = WindowListEntry.frame(of: drag.window.id)
         else { return }
         windows.snap(target, window: (drag.window.pid, frame))
+    }
+
+    private func reset() {
+        gesture = .idle
+        pendingRead?.cancel()
+        pendingRead = nil
+        preview.hide()
     }
 
     /// Nil when the drag is not a window move (the window closed or changed size, and a
@@ -171,13 +187,6 @@ private struct WindowListEntry {
     let id: CGWindowID
     let pid: pid_t
     let frame: CGRect
-
-    /// The frontmost normal-level window under `point`. Menus, panels and overlays sit
-    /// on other levels and are skipped; dragging one of them does not snap.
-    static func under(_ point: CGPoint) -> WindowListEntry? {
-        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
-        return list?.lazy.compactMap(WindowListEntry.init).first { $0.frame.contains(point) }
-    }
 
     static func frame(of id: CGWindowID) -> CGRect? {
         let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]]

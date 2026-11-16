@@ -29,7 +29,9 @@ public enum SnapZone {
     /// `minX` to `maxX - 1` on a 1x screen. So a point on the line two screens share
     /// belongs to the right (or lower) one, and both edges are `edge` pixels wide.
     public static func target(at point: CGPoint, screens: [CGRect]) -> Target? {
-        guard let index = screens.firstIndex(where: { contains($0, point) }) else { return nil }
+        guard let index = screens.firstIndex(where: { s in
+            point.x >= s.minX && point.x < s.maxX && point.y >= s.minY && point.y < s.maxY
+        }) else { return nil }
         let s = screens[index]
         let left = point.x < s.minX + edge
         let right = point.x >= s.maxX - edge
@@ -47,9 +49,5 @@ public enum SnapZone {
         default: left ? .moveToLeftHalf : right ? .moveToRightHalf : top ? .moveToFullscreen : nil
         }
         return action.map { Target(action: $0, screen: index) }
-    }
-
-    private static func contains(_ s: CGRect, _ point: CGPoint) -> Bool {
-        point.x >= s.minX && point.x < s.maxX && point.y >= s.minY && point.y < s.maxY
     }
 }
