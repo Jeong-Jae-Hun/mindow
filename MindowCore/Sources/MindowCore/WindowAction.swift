@@ -60,6 +60,44 @@ public enum WindowAction: String, CaseIterable, Sendable {
         }
     }
 
+    /// Groups the menu bar menu and the shortcut settings list share, so both show the
+    /// same order.
+    public enum Family: CaseIterable, Sendable {
+        case halves, corners, cells, twoThirds, fill, size, displays, history
+
+        public var title: String {
+            switch self {
+            case .halves: "Halves"
+            case .corners: "Corners"
+            case .cells: "Thirds and Fourths"
+            case .twoThirds: "Two Thirds"
+            case .fill: "Fill and Center"
+            case .size: "Size"
+            case .displays: "Displays"
+            case .history: "Undo and Redo"
+            }
+        }
+
+        /// In `allCases` order.
+        public var actions: [WindowAction] {
+            WindowAction.allCases.filter { $0.family == self }
+        }
+    }
+
+    public var family: Family {
+        switch self {
+        case .moveToLeftHalf, .moveToRightHalf, .moveToTopHalf, .moveToBottomHalf: .halves
+        case .moveToUpperLeft, .moveToUpperRight, .moveToLowerLeft, .moveToLowerRight: .corners
+        case .moveToNextThird, .moveToPreviousThird, .moveToNextFourth, .moveToPreviousFourth,
+             .moveToNextRowThird, .moveToPreviousRowThird: .cells
+        case .moveToCenterTwoThirds, .moveToFirstTwoThirds, .moveToLastTwoThirds: .twoThirds
+        case .moveToFullscreen, .maximizeHeight, .moveToCenter: .fill
+        case .makeLarger, .makeSmaller: .size
+        case .moveToNextDisplay, .moveToPreviousDisplay: .displays
+        case .undoLastMove, .redoLastMove: .history
+        }
+    }
+
     /// Grids whose cells Next/Previous actions walk. Next and Previous of one grid share
     /// the cell index; different grids have different cells, so they never share it.
     public enum CellGrid: Sendable {

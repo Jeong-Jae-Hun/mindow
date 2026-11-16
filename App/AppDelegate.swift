@@ -4,7 +4,7 @@ import MindowCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let settings = SettingsWindowController()
-    private let windows = WindowManager()
+    let windows = WindowManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [

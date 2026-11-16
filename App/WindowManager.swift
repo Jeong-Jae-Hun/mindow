@@ -28,11 +28,27 @@ final class WindowManager {
     private var cycleWindow: AXUIElement?
     private var history = MoveHistory<AXUIElement>()
     private var maximized = MaximizeMemory<AXUIElement>()
+    /// The app a menu bar click is meant for. Mindow itself becomes frontmost while its
+    /// settings window is open, so the menu cannot rely on the frontmost app.
+    private(set) var lastOtherApp: NSRunningApplication?
 
-    func perform(_ action: WindowAction) {
+    init() {
+        let current = NSWorkspace.shared.frontmostApplication
+        lastOtherApp = current?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : current
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+            MainActor.assumeIsolated { self?.lastOtherApp = app }
+        }
+    }
+
+    /// Shortcuts act on the frontmost app; the menu passes `lastOtherApp`.
+    func perform(_ action: WindowAction, in target: NSRunningApplication? = NSWorkspace.shared.frontmostApplication) {
         var focused: CFTypeRef?
         guard AXIsProcessTrusted(),
-              let app = NSWorkspace.shared.frontmostApplication,
+              let app = target,
               AXUIElementCopyAttributeValue(
                   AXUIElementCreateApplication(app.processIdentifier),
                   kAXFocusedWindowAttribute as CFString,
