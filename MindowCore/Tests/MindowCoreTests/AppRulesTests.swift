@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import MindowCore
 
@@ -42,6 +43,17 @@ struct AppRulesTests {
         #expect(AppRules(plist: stored).rules == [AppRule(bundleID: orca, action: .moveToFullscreen, display: 0)])
         #expect(AppRules(plist: nil).rules.isEmpty)
         #expect(AppRules(plist: "nonsense").rules.isEmpty)
+    }
+
+    @Test("plist에서 읽은 참·거짓 화면 값은 1·0으로 보지 않고 건너뛴다")
+    func 불리언화면() throws {
+        let written: [[String: Any]] = [
+            ["bundleID": slack, "action": "MoveToLeftHalf", "display": true],
+            ["bundleID": orca, "action": "MoveToLeftHalf", "display": false],
+        ]
+        let data = try PropertyListSerialization.data(fromPropertyList: written, format: .binary, options: 0)
+        let read = try PropertyListSerialization.propertyList(from: data, format: nil)
+        #expect(AppRules(plist: read).rules.isEmpty)
     }
 
     @Test("한 앱에 규칙이 둘이면 첫 규칙만 남는다")

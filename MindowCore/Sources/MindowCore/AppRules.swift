@@ -60,7 +60,8 @@ public struct AppRules: Equatable, Sendable {
                   let action = WindowAction(rawValue: name), AppRule.actions.contains(action)
             else { return nil }
             guard let raw = dictionary["display"] else { return AppRule(bundleID: bundleID, action: action) }
-            guard let display = raw as? Int, display >= 0 else { return nil }
+            // A plist Bool bridges to Int (true is 1), so it is ruled out by type first.
+            guard CFGetTypeID(raw as CFTypeRef) != CFBooleanGetTypeID(), let display = raw as? Int, display >= 0 else { return nil }
             return AppRule(bundleID: bundleID, action: action, display: display)
         })
     }

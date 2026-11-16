@@ -32,6 +32,8 @@ final class WindowManager {
     private var cycleWindow: AXUIElement?
     private var history = MoveHistory<AXUIElement>()
     private var maximized = MaximizeMemory<AXUIElement>()
+    /// Windows `autoPlace` is waiting on or moving.
+    private var autoPlacing: Set<AXUIElement> = []
     private let hud = ActionHUD()
     /// The frontmost app when the last menu opened. A menu bar click acts on it, not on
     /// whatever is frontmost when the item fires, in case opening the menu changed that.
@@ -225,6 +227,10 @@ final class WindowManager {
     /// again from the moved frame, Make Larger would grow it twice. Undo keeps the frame
     /// from before the first move that happened, whichever pass made it.
     func autoPlace(_ window: AXUIElement, of bundleID: String) async {
+        // A window that opened as the observer was added is both created and listed;
+        // placing it twice would grow it twice under Make Larger.
+        guard autoPlacing.insert(window).inserted else { return }
+        defer { autoPlacing.remove(window) }
         AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
         var first: (rule: AppRule, frame: CGRect, screen: CGRect, applied: CGRect)?
         var recorded = false
