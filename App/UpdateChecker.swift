@@ -8,8 +8,6 @@ import Observation
 @MainActor @Observable
 final class UpdateChecker {
     private(set) var available: LatestRelease?
-    /// The toggle and the hourly wake-up can both call `refresh`; one request at a time.
-    @ObservationIgnored private var checking = false
 
     private static let endpoint = URL(string: "https://api.github.com/repos/Jeong-Jae-Hun/mindow/releases/latest")!
     /// Ephemeral with no cookie store or cache: the request carries nothing that
@@ -26,6 +24,7 @@ final class UpdateChecker {
 
     /// Hourly wake-ups decide by the stored last check, so a Mac that slept through
     /// the 24 hours checks soon after waking, and a relaunch doesn't check again early.
+    /// An offline launch therefore waits a day too, as a failed check does.
     func start() {
         Task {
             while !Task.isCancelled {
@@ -44,20 +43,18 @@ final class UpdateChecker {
             return
         }
         let lastCheck = defaults.object(forKey: Preferences.lastUpdateCheck) as? Date
-        guard !checking, UpdateSchedule.isDue(lastCheck: lastCheck, now: .now),
+        guard UpdateSchedule.isDue(lastCheck: lastCheck, now: .now),
               let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         else { return }
-        checking = true
-        defer { checking = false }
+        // Recorded before the request, so a failed one also waits a day, and a second
+        // call while this one is out (toggle plus hourly wake-up) finds nothing due.
+        defaults.set(Date.now, forKey: Preferences.lastUpdateCheck)
         var request = URLRequest(url: Self.endpoint)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await Self.session.data(for: request),
-              let status = (response as? HTTPURLResponse)?.statusCode
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let latest = LatestRelease(json: data)
         else { return }
-        // Recorded only once GitHub answered, rate limit included: an offline launch
-        // tries again on the next hourly wake-up instead of waiting a day.
-        defaults.set(Date.now, forKey: Preferences.lastUpdateCheck)
-        guard status == 200, let latest = LatestRelease(json: data) else { return }
         let newer = latest.isNewer(than: current) ? latest : nil
         // The toggle may have been turned off while the request was out.
         if defaults.bool(forKey: Preferences.checkForUpdates), newer != available {

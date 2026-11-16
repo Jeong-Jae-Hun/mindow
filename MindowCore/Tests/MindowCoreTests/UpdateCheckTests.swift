@@ -4,11 +4,11 @@ import Testing
 
 @Suite("업데이트 확인")
 struct UpdateCheckTests {
-    func release(tag: String, url: String = "https://github.com/Jeong-Jae-Hun/mindow/releases/tag/v0.2.0",
-                 draft: Bool = false, prerelease: Bool = false) -> Data {
+    /// The shape GitHub returns, other fields included, for a published release.
+    func release(tag: String) -> Data {
         Data("""
-        {"tag_name":"\(tag)","html_url":"\(url)","draft":\(draft),"prerelease":\(prerelease),
-         "name":"Mindow \(tag)","assets":[{"name":"Mindow.zip"}],"author":{"login":"x"}}
+        {"tag_name":"\(tag)","html_url":"https://github.com/Jeong-Jae-Hun/mindow/releases/tag/\(tag)",
+         "draft":false,"prerelease":false,"name":"Mindow \(tag)","assets":[{"name":"Mindow.zip"}]}
         """.utf8)
     }
 
@@ -18,13 +18,14 @@ struct UpdateCheckTests {
         let ninth = try #require(ReleaseVersion("0.9.1"))
         #expect(tenth > ninth)
         #expect(ReleaseVersion("v0.2.0") == ReleaseVersion("0.2.0"))
-        #expect(ReleaseVersion("0.2") == ReleaseVersion("0.2.0"))
+        #expect(try #require(ReleaseVersion("1.0.0")) > #require(ReleaseVersion("0.99.99")))
         #expect(ReleaseVersion("v1.0.0")?.description == "1.0.0")
     }
 
-    @Test("숫자가 아닌 버전·접미사 붙은 버전은 읽지 않는다")
+    @Test("세 숫자가 아닌 버전·접미사·앞자리 0은 읽지 않는다")
     func 이상한버전() {
-        for string in ["", "v", "vv0.2.0", "0..2", "0.2.", "1.x", "+1.0", " 0.2.0", "0.2.0-beta", "0.2.0 ", "١.٢"] {
+        for string in ["", "v", "vv0.2.0", "0.2", "1.2.3.4", "v01.2.3", "0.2.00", "0..2", "0.2.", "1.x.0",
+                       "+1.0.0", " 0.2.0", "0.2.0-beta", "0.2.0 ", "١.٢.٣", "99999999999999999999.0.0"] {
             #expect(ReleaseVersion(string) == nil, "\(string)")
         }
     }
@@ -41,7 +42,7 @@ struct UpdateCheckTests {
         let latest = try #require(LatestRelease(json: release(tag: "v0.10.0")))
         #expect(latest.isNewer(than: "0.9.1"))
         #expect(!latest.isNewer(than: "0.10.0"))
-        #expect(!latest.isNewer(than: "0.11"))
+        #expect(!latest.isNewer(than: "0.11.0"))
         #expect(!latest.isNewer(than: ""))
     }
 
@@ -52,10 +53,12 @@ struct UpdateCheckTests {
 
     @Test("초안·프리릴리스·github.com 밖 페이지는 무시한다")
     func 무시할릴리스() {
-        #expect(LatestRelease(json: release(tag: "v0.2.0", draft: true)) == nil)
-        #expect(LatestRelease(json: release(tag: "v0.2.0", prerelease: true)) == nil)
-        #expect(LatestRelease(json: release(tag: "v0.2.0", url: "http://github.com/x")) == nil)
-        #expect(LatestRelease(json: release(tag: "v0.2.0", url: "https://example.com/x")) == nil)
+        let page = #""html_url":"https://github.com/x""#
+        #expect(LatestRelease(json: Data(#"{"tag_name":"v0.2.0",\#(page),"draft":true}"#.utf8)) == nil)
+        #expect(LatestRelease(json: Data(#"{"tag_name":"v0.2.0",\#(page),"prerelease":true}"#.utf8)) == nil)
+        #expect(LatestRelease(json: Data(#"{"tag_name":"v0.2.0",\#(page)}"#.utf8)) != nil)
+        #expect(LatestRelease(json: Data(#"{"tag_name":"v0.2.0","html_url":"http://github.com/x"}"#.utf8)) == nil)
+        #expect(LatestRelease(json: Data(#"{"tag_name":"v0.2.0","html_url":"https://example.com/x"}"#.utf8)) == nil)
     }
 
     @Test("깨진 JSON·필드 없는 응답·rate limit 응답은 무시한다")

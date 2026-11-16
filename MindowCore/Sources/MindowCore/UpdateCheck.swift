@@ -1,35 +1,31 @@
 import Foundation
 
 /// A release number like `0.10.0`, compared field by field so 0.10.0 is newer than 0.9.1.
-/// Only plain numbers parse: a tag with a suffix (`0.3.0-beta`) gives nil, and the
-/// Homebrew cask this notice points to only ships plain releases anyway.
+/// Only plain `major.minor.patch` parses: a tag with a suffix (`0.3.0-beta`), a fourth
+/// field or a leading zero gives nil. The Homebrew cask this notice points to only
+/// ships plain releases, and `MARKETING_VERSION` always has three fields.
 public struct ReleaseVersion: Comparable, CustomStringConvertible, Sendable {
     public let fields: [Int]
 
-    /// Accepts one leading `v` (`v0.2.0`, the tag form). Anything else that isn't
-    /// dot-separated digits gives nil.
+    /// Accepts one leading `v` (`v0.2.0`, the tag form).
     public init?(_ string: String) {
         let number = string.hasPrefix("v") ? string.dropFirst() : Substring(string)
         let parts = number.split(separator: ".", omittingEmptySubsequences: false)
         // `Int("+1")` parses, so only ASCII digits get that far. Overflow still gives nil.
-        guard parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isASCII && $0.isNumber } }) else { return nil }
+        guard parts.count == 3,
+              parts.allSatisfy({ part in
+                  !part.isEmpty && part.allSatisfy { $0.isASCII && $0.isNumber } && (part == "0" || !part.hasPrefix("0"))
+              })
+        else { return nil }
         let fields = parts.compactMap { Int($0) }
-        guard fields.count == parts.count else { return nil }
+        guard fields.count == 3 else { return nil }
         self.fields = fields
     }
 
     public var description: String { fields.map(String.init).joined(separator: ".") }
 
-    /// Missing fields count as 0, so 0.2 equals 0.2.0.
     public static func < (lhs: ReleaseVersion, rhs: ReleaseVersion) -> Bool {
-        let count = max(lhs.fields.count, rhs.fields.count)
-        let left = lhs.fields + Array(repeating: 0, count: count - lhs.fields.count)
-        let right = rhs.fields + Array(repeating: 0, count: count - rhs.fields.count)
-        return left.lexicographicallyPrecedes(right)
-    }
-
-    public static func == (lhs: ReleaseVersion, rhs: ReleaseVersion) -> Bool {
-        !(lhs < rhs) && !(rhs < lhs)
+        lhs.fields.lexicographicallyPrecedes(rhs.fields)
     }
 }
 
