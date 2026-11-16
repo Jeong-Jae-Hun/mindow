@@ -47,12 +47,17 @@ struct SettingsView: View {
                 }
             }
             Section("Shortcuts") {
-                ForEach(WindowAction.allCases, id: \.self) { action in
-                    if let name = Shortcuts.names[action] {
-                        KeyboardShortcuts.Recorder(action.title, name: name)
+                KeyboardShortcuts.Recorder("Pause Shortcuts", name: Shortcuts.togglePause)
+                Button("Import from Spectacle…") { SpectacleImporter.run() }
+            }
+            ForEach(WindowAction.Family.allCases, id: \.self) { family in
+                Section(family.title) {
+                    ForEach(family.actions, id: \.self) { action in
+                        if let name = Shortcuts.names[action] {
+                            KeyboardShortcuts.Recorder(action.title, name: name)
+                        }
                     }
                 }
-                Button("Import from Spectacle…") { SpectacleImporter.run() }
             }
             Section("General") {
                 Toggle("Cycle sizes when the same shortcut is pressed again", isOn: $cycleOnRepeat)

@@ -1,3 +1,5 @@
+import KeyboardShortcuts
+import MindowCore
 import SwiftUI
 
 @main
@@ -16,8 +18,32 @@ struct MindowApp: App {
         )
     }
 
+    /// Same rule as `menuBarIconInserted`: the menu only toggles on a real change.
+    private var pausedBinding: Binding<Bool> {
+        Binding(
+            get: { Shortcuts.pause.isPaused },
+            set: { if $0 != Shortcuts.pause.isPaused { Shortcuts.pause.toggle() } }
+        )
+    }
+
     var body: some Scene {
-        MenuBarExtra("Mindow", systemImage: "rectangle.split.2x2", isInserted: menuBarIconInserted) {
+        MenuBarExtra(
+            "Mindow",
+            systemImage: Shortcuts.pause.isPaused ? "rectangle.slash" : "rectangle.split.2x2",
+            isInserted: menuBarIconInserted
+        ) {
+            ForEach(WindowAction.Family.allCases, id: \.self) { family in
+                ForEach(family.actions, id: \.self) { action in
+                    if let name = Shortcuts.names[action] {
+                        Button(action.title) { appDelegate.windows.perform(action, in: appDelegate.windows.menuTarget) }
+                            .globalKeyboardShortcut(name)
+                    }
+                }
+                Divider()
+            }
+            Toggle("Pause Shortcuts", isOn: pausedBinding)
+                .globalKeyboardShortcut(Shortcuts.togglePause)
+            Divider()
             Button("Settings…") { appDelegate.settings.show() }
                 .keyboardShortcut(",")
             Divider()
