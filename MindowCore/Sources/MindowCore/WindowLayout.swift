@@ -39,8 +39,8 @@ public enum WindowLayout {
     /// Make Smaller stops at this share of the screen so a window never vanishes.
     static let minimumShare: CGFloat = 0.2
 
-    /// Returns nil for actions that need more than one screen or history
-    /// (display moves, undo, redo).
+    /// Returns nil for actions that need more than one screen, history or a second
+    /// window (display moves, undo, redo, Split with Previous Window).
     public static func placement(for action: WindowAction, in context: Context) -> Placement? {
         let s = context.screen
         let step = context.previousStep.map { ($0 + 1) % cycleFractions.count } ?? 0
@@ -77,7 +77,7 @@ public enum WindowLayout {
             )
         case .makeLarger: resized(context, by: 1)
         case .makeSmaller: resized(context, by: -1)
-        case .moveToNextDisplay, .moveToPreviousDisplay, .undoLastMove, .redoLastMove: nil
+        case .moveToNextDisplay, .moveToPreviousDisplay, .undoLastMove, .redoLastMove, .splitWithPrevious: nil
         }
         if let rect {
             // Maximize Height applied the gap above to its height only; its x and width stay the window's.
