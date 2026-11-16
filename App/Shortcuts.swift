@@ -14,6 +14,11 @@ enum Shortcuts {
     )
     /// Spectacle has no such action, so it has no default and an import never sets it.
     static let togglePause = KeyboardShortcuts.Name("TogglePause")
+    static let togglePauseTitle = "Pause Shortcuts"
+    /// Every Mindow shortcut with its title, Pause first and then the actions in
+    /// `allCases` order, which is the order a conflict warning lists the others in.
+    static let titled: [(name: KeyboardShortcuts.Name, title: String)] =
+        [(togglePause, togglePauseTitle)] + WindowAction.allCases.compactMap { action in names[action].map { ($0, action.title) } }
     static let pause = ShortcutPause()
     static let frontmost = FrontmostApp()
 
@@ -40,6 +45,18 @@ enum Shortcuts {
         for (action, binding) in bindings {
             guard let name = names[action] else { continue }
             KeyboardShortcuts.setShortcut(shortcut(binding), for: name)
+        }
+    }
+
+    /// Names whose shortcut another Mindow shortcut also has, mapped to the others' titles.
+    static func conflicts() -> [KeyboardShortcuts.Name: [String]] {
+        let bindings = Dictionary(uniqueKeysWithValues: titled.map { entry in
+            (entry.name, KeyboardShortcuts.getShortcut(for: entry.name).map {
+                KeyBinding(carbonKeyCode: $0.carbonKeyCode, carbonModifiers: $0.carbonModifiers)
+            })
+        })
+        return ShortcutConflicts.find(in: bindings).mapValues { others in
+            titled.filter { others.contains($0.name) }.map(\.title)
         }
     }
 
