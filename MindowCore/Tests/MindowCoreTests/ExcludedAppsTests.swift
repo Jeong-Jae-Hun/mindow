@@ -24,9 +24,10 @@ struct ExcludedAppsTests {
     @Test("추가는 이미 있거나 빈 값이면 바뀌지 않았다고 알리고, 순서를 지킨다")
     func 추가() {
         var apps = ExcludedApps([game])
-        #expect(apps.add(slack))
-        #expect(!apps.add(game))
-        #expect(!apps.add(""))
+        let added = apps.add(slack)
+        let repeated = apps.add(game)
+        let empty = apps.add("")
+        #expect(added && !repeated && !empty)
         #expect(apps.bundleIDs == [game, slack])
     }
 
