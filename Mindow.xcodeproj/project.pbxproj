@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0D61ED7139C6FF862479439E /* ActionHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE4E0A0FAFA9FE08C45FCA6 /* ActionHUD.swift */; };
 		24231B675AF137A2B69017EC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */; };
+		36C935B4569F4A0EF5A9A77C /* SettingsTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A5E968A4D749B27524F755B /* SettingsTransfer.swift */; };
 		3EA23B80EA69BEBA459E9FE6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37649C61739B946CBB1A0836 /* SettingsView.swift */; };
 		60F42D4B23158C4AC25A2178 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 32C037F0CA73FEF8B83758B6 /* KeyboardShortcuts */; };
 		8B90658F5493687B2A88B7F3 /* AutoPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82A839E663A8F564689CE513 /* AutoPlacement.swift */; };
@@ -33,6 +34,7 @@
 		51098E754D1E8632882E50C4 /* WindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowManager.swift; sourceTree = "<group>"; };
 		6727C2AF95919FB165B7C044 /* Shortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shortcuts.swift; sourceTree = "<group>"; };
 		82A839E663A8F564689CE513 /* AutoPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoPlacement.swift; sourceTree = "<group>"; };
+		8A5E968A4D749B27524F755B /* SettingsTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTransfer.swift; sourceTree = "<group>"; };
 		932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectacleImporter.swift; sourceTree = "<group>"; };
 		9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		995A35CBADD7BFD3F41EB957 /* WindowIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowIntents.swift; sourceTree = "<group>"; };
@@ -86,6 +88,7 @@
 				0596EDE4F43AA110FB2094E5 /* Info.plist */,
 				EEFB27E3CF2B8F0BD76E98B9 /* LayoutLibrary.swift */,
 				B40545EDA75EEC02F3900FED /* MindowApp.swift */,
+				8A5E968A4D749B27524F755B /* SettingsTransfer.swift */,
 				37649C61739B946CBB1A0836 /* SettingsView.swift */,
 				6727C2AF95919FB165B7C044 /* Shortcuts.swift */,
 				932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */,
@@ -186,6 +189,7 @@
 				AF0307CA924D1A64CC06CDEA /* DragSnap.swift in Sources */,
 				E8EB302830FE4E937220B7F6 /* LayoutLibrary.swift in Sources */,
 				F639D4212B2EDBF60E142EF5 /* MindowApp.swift in Sources */,
+				36C935B4569F4A0EF5A9A77C /* SettingsTransfer.swift in Sources */,
 				3EA23B80EA69BEBA459E9FE6 /* SettingsView.swift in Sources */,
 				E483D75A411321D2E56BB09D /* Shortcuts.swift in Sources */,
 				B5A23269A80EC96E4F77102A /* SpectacleImporter.swift in Sources */,
