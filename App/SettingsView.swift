@@ -6,11 +6,16 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class SettingsWindowController {
+    private let updates: UpdateChecker
     private var window: NSWindow?
+
+    init(updates: UpdateChecker) {
+        self.updates = updates
+    }
 
     func show() {
         if window == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView()))
+            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(updates: updates)))
             window.title = "Mindow Settings"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
@@ -23,10 +28,12 @@ final class SettingsWindowController {
 }
 
 struct SettingsView: View {
+    let updates: UpdateChecker
     @AppStorage(Preferences.cycleOnRepeat) private var cycleOnRepeat = true
     @AppStorage(Preferences.showMenuBarIcon) private var showMenuBarIcon = true
     @AppStorage(Preferences.gap) private var gap = 0.0
     @AppStorage(Preferences.dragSnap) private var dragSnap = true
+    @AppStorage(Preferences.checkForUpdates) private var checkForUpdates = true
     @State private var trusted = AXIsProcessTrusted()
     @State private var spectacleRunning = SpectacleShortcuts.isSpectacleRunning
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -97,6 +104,16 @@ struct SettingsView: View {
                 if !showMenuBarIcon {
                     Text("Open Mindow again from Applications to get back here.")
                         .foregroundStyle(.secondary).font(.caption)
+                }
+                Toggle("Check for updates", isOn: $checkForUpdates)
+                    .onChange(of: checkForUpdates) { Task { await updates.refresh() } }
+                if let release = updates.available {
+                    HStack {
+                        Text("v\(release.version.description) available — brew upgrade --cask mindow")
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button("Open Release Page") { NSWorkspace.shared.open(release.url) }
+                    }
                 }
             }
         }
