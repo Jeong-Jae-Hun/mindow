@@ -8,6 +8,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     lazy var settings = SettingsWindowController(updates: updates)
     private var dragSnap: DragSnap?
 
+    /// A URL that launches Mindow arrives before `applicationDidFinishLaunching`, when
+    /// Mindow may already be in front, so the app it means is read here, before that.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        Shortcuts.frontmost.update(NSWorkspace.shared.frontmostApplication)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [
             Preferences.showMenuBarIcon: true,
@@ -38,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { Shortcuts.frontmost.update(app) }
         }
         // An excluded app can already be in front at launch; no activation follows.
-        Shortcuts.frontmost.update(NSWorkspace.shared.frontmostApplication)
+        Shortcuts.sync()
     }
 
     /// `mindow://` URLs (`URLCommand`). Anything Mindow can't do beeps and nothing else

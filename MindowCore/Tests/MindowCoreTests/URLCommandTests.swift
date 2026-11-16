@@ -54,9 +54,14 @@ struct URLCommandTests {
         #expect(command("mindow:action/MoveToLeftHalf") == nil)
     }
 
-    @Test("쿼리나 프래그먼트가 붙으면 해석하지 않는다")
-    func 쿼리거부() {
+    @Test("쿼리·프래그먼트·사용자·포트가 붙거나 빈 경로 요소가 있으면 해석하지 않는다")
+    func 덧붙음거부() {
         #expect(command("mindow://action/MoveToLeftHalf?gap=8") == nil)
         #expect(command("mindow://action/MoveToLeftHalf#x") == nil)
+        #expect(command("mindow://user@action/MoveToLeftHalf") == nil)
+        #expect(command("mindow://user:pw@action/MoveToLeftHalf") == nil)
+        #expect(command("mindow://action:123/MoveToLeftHalf") == nil)
+        #expect(command("mindow://action//MoveToLeftHalf") == nil)
+        #expect(command("mindow://action/MoveToLeftHalf//") == nil)
     }
 }
