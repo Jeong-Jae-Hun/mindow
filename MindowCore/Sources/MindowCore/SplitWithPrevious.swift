@@ -7,8 +7,12 @@ public enum SplitWithPrevious {
     /// `screen`, the same frames Left Half and Right Half give on a first press. When
     /// both already sit there, they trade sides, so pressing again swaps them and a
     /// third press puts them back. Any other arrangement starts from the left.
-    public static func frames(current: CGRect, previous: CGRect, screen: CGRect, gap: CGFloat) -> (current: CGRect, previous: CGRect)? {
-        let context = WindowLayout.Context(window: current, screen: screen, previousStep: nil, gap: gap)
+    public static func frames(
+        of windows: (current: CGRect, previous: CGRect),
+        on screen: (frame: CGRect, gap: CGFloat)
+    ) -> (current: CGRect, previous: CGRect)? {
+        let (current, previous) = windows
+        let context = WindowLayout.Context(window: current, screen: screen.frame, previousStep: nil, gap: screen.gap)
         guard let left = WindowLayout.placement(for: .moveToLeftHalf, in: context)?.frame,
               let right = WindowLayout.placement(for: .moveToRightHalf, in: context)?.frame
         else { return nil }

@@ -99,9 +99,10 @@ final class WindowManager {
                 return
             }
             AXUIElementSetMessagingTimeout(other, AXUIElement.messagingTimeout)
-            guard !other.flag(kAXMinimizedAttribute), !other.flag(fullScreenAttribute),
+            // Each read that fails ends it, so a hung app costs one more timeout, not three.
+            guard other.flag(kAXMinimizedAttribute) == false, other.flag(fullScreenAttribute) == false,
                   let otherCurrent = other.frame,
-                  let frames = SplitWithPrevious.frames(current: current, previous: otherCurrent, screen: screen, gap: Preferences.gapValue)
+                  let frames = SplitWithPrevious.frames(of: (current, otherCurrent), on: (screen, Preferences.gapValue))
             else {
                 NSSound.beep()
                 return
@@ -217,11 +218,15 @@ private extension AXUIElement {
         return unsafeDowncast(focused, to: AXUIElement.self)
     }
 
-    /// False when the attribute is missing or unreadable.
-    func flag(_ name: String) -> Bool {
+    /// False when the element doesn't have the attribute (most windows lack
+    /// AXFullScreen), nil when it can't be read, as from an app that stopped responding.
+    func flag(_ name: String) -> Bool? {
         var raw: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(self, name as CFString, &raw) == .success else { return false }
-        return (raw as? Bool) ?? false
+        switch AXUIElementCopyAttributeValue(self, name as CFString, &raw) {
+        case .success: return raw as? Bool
+        case .attributeUnsupported, .noValue: return false
+        default: return nil
+        }
     }
 
     var frame: CGRect? {
