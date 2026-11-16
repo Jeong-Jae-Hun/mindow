@@ -65,6 +65,9 @@ enum Preferences {
     static let importedFromSpectacleAt = "mindow.importedFromSpectacleAt"
     /// Bundle IDs; window action shortcuts are off while one of these apps is in front.
     static let excludedApps = "mindow.excludedApps"
+    /// Plist array of `{bundleID, action, display?}` (`AppRules`): new windows of those
+    /// apps are placed by the action.
+    static let appRules = "mindow.appRules"
     /// Dragging a window to a screen edge places it there.
     static let dragSnap = "mindow.dragSnap"
     /// A short label names each action that moved a window (`ActionHUD`).
