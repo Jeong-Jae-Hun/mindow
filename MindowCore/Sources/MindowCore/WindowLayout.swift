@@ -17,7 +17,7 @@ public enum WindowLayout {
     }
 
     /// Where to put the window, and which cycle step that is (a fraction index for
-    /// halves and corners, a cell index for thirds, 0 otherwise).
+    /// halves and corners, a cell index for thirds and fourths, 0 otherwise).
     public struct Placement: Equatable, Sendable {
         public var frame: CGRect
         public var step: Int
@@ -50,8 +50,19 @@ public enum WindowLayout {
         case .moveToUpperRight: CGRect(x: s.maxX - s.width * f, y: s.minY, width: s.width * f, height: s.height / 2)
         case .moveToLowerLeft: CGRect(x: s.minX, y: s.midY, width: s.width * f, height: s.height / 2)
         case .moveToLowerRight: CGRect(x: s.maxX - s.width * f, y: s.midY, width: s.width * f, height: s.height / 2)
-        case .moveToNextThird, .moveToPreviousThird: nil
+        case .moveToNextThird, .moveToPreviousThird, .moveToNextFourth, .moveToPreviousFourth,
+             .moveToNextRowThird, .moveToPreviousRowThird: nil
+        case .moveToCenterTwoThirds: CGRect(x: s.minX + s.width / 6, y: s.minY, width: s.width * 2 / 3, height: s.height)
+        case .moveToFirstTwoThirds:
+            s.width >= s.height
+                ? CGRect(x: s.minX, y: s.minY, width: s.width * 2 / 3, height: s.height)
+                : CGRect(x: s.minX, y: s.minY, width: s.width, height: s.height * 2 / 3)
+        case .moveToLastTwoThirds:
+            s.width >= s.height
+                ? CGRect(x: s.maxX - s.width * 2 / 3, y: s.minY, width: s.width * 2 / 3, height: s.height)
+                : CGRect(x: s.minX, y: s.maxY - s.height * 2 / 3, width: s.width, height: s.height * 2 / 3)
         case .moveToFullscreen: s
+        case .maximizeHeight: CGRect(x: context.window.minX, y: s.minY, width: context.window.width, height: s.height)
         case .moveToCenter:
             CGRect(
                 x: s.midX - min(context.window.width, s.width) / 2,
@@ -66,9 +77,14 @@ public enum WindowLayout {
         if let rect {
             return Placement(frame: rounded(rect), step: action.cyclesOnRepeat ? step : 0)
         }
+        let landscape = s.width >= s.height
         switch action {
-        case .moveToNextThird: return third(context, offset: 1)
-        case .moveToPreviousThird: return third(context, offset: -1)
+        case .moveToNextThird: return cell(context, count: 3, rows: !landscape, offset: 1)
+        case .moveToPreviousThird: return cell(context, count: 3, rows: !landscape, offset: -1)
+        case .moveToNextFourth: return cell(context, count: 4, rows: !landscape, offset: 1)
+        case .moveToPreviousFourth: return cell(context, count: 4, rows: !landscape, offset: -1)
+        case .moveToNextRowThird: return cell(context, count: 3, rows: true, offset: 1)
+        case .moveToPreviousRowThird: return cell(context, count: 3, rows: true, offset: -1)
         default: return nil
         }
     }
@@ -115,31 +131,31 @@ public enum WindowLayout {
 
     // ─── Private ───
 
-    /// Columns on a landscape screen, rows on a portrait one. A repeated press
-    /// continues from the remembered cell, because an app with a large minimum width
-    /// can land on the same frame for two cells. Otherwise a window spanning the full
-    /// cross axis sits in the cell it overlaps most, and any other window starts at
-    /// the first (next) or last (previous) cell.
-    private static func third(_ context: Context, offset: Int) -> Placement {
+    /// Splits the screen into `count` columns, or rows when `rows` is set. A repeated
+    /// press continues from the remembered cell, because an app with a large minimum
+    /// size can land on the same frame for two cells. Otherwise a window spanning the
+    /// full cross axis sits in the cell it overlaps most, and any other window starts
+    /// at the first (next) or last (previous) cell.
+    private static func cell(_ context: Context, count: Int, rows: Bool, offset: Int) -> Placement {
         let (window, s) = (context.window, context.screen)
-        let landscape = s.width >= s.height
-        let cells = (0..<3).map { i -> CGRect in
-            landscape
-                ? CGRect(x: s.minX + s.width * CGFloat(i) / 3, y: s.minY, width: s.width / 3, height: s.height)
-                : CGRect(x: s.minX, y: s.minY + s.height * CGFloat(i) / 3, width: s.width, height: s.height / 3)
+        let n = CGFloat(count)
+        let cells = (0..<count).map { i -> CGRect in
+            rows
+                ? CGRect(x: s.minX, y: s.minY + s.height * CGFloat(i) / n, width: s.width, height: s.height / n)
+                : CGRect(x: s.minX + s.width * CGFloat(i) / n, y: s.minY, width: s.width / n, height: s.height)
         }
-        let spansCrossAxis = landscape
-            ? abs(window.minY - s.minY) <= tolerance && abs(window.height - s.height) <= tolerance
-            : abs(window.minX - s.minX) <= tolerance && abs(window.width - s.width) <= tolerance
+        let spansCrossAxis = rows
+            ? abs(window.minX - s.minX) <= tolerance && abs(window.width - s.width) <= tolerance
+            : abs(window.minY - s.minY) <= tolerance && abs(window.height - s.height) <= tolerance
         let overlaps = cells.map { cell -> CGFloat in
             let i = cell.intersection(window)
             return i.isNull ? 0 : i.width * i.height
         }
         let overlapped = overlaps.indices.max { overlaps[$0] < overlaps[$1] }.flatMap { overlaps[$0] > 0 ? $0 : nil }
         let index = if let current = context.previousStep ?? (spansCrossAxis ? overlapped : nil) {
-            (current + offset + 3) % 3
+            (current + offset + count) % count
         } else {
-            offset > 0 ? 0 : 2
+            offset > 0 ? 0 : count - 1
         }
         return Placement(frame: rounded(cells[index]), step: index)
     }

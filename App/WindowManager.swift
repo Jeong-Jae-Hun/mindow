@@ -54,7 +54,7 @@ final class WindowManager {
         let screen = screens[index]
 
         // A cycle continues only on the same window with nothing else in between.
-        if cycleWindow != window || !(action.cyclesOnRepeat || action.isThird) {
+        if cycleWindow != window || !(action.cyclesOnRepeat || action.cellGrid != nil) {
             cycle = RepeatCycle()
         }
         cycleWindow = window
@@ -80,8 +80,8 @@ final class WindowManager {
                 history.record(current, for: window)
             }
         default:
-            // The toggle covers size cycling; thirds always walk their cells.
-            let remembered = action.isThird || UserDefaults.standard.bool(forKey: Preferences.cycleOnRepeat)
+            // The toggle covers size cycling; thirds and fourths always walk their cells.
+            let remembered = action.cellGrid != nil || UserDefaults.standard.bool(forKey: Preferences.cycleOnRepeat)
             let previous = remembered ? cycle.previousStep(for: action, current: current) : nil
             guard let target = WindowLayout.placement(for: action, in: .init(window: current, screen: screen, previousStep: previous)),
                   let applied = window.setFrame(target.frame, within: screen)

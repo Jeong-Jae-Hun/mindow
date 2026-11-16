@@ -9,7 +9,7 @@ struct SpectacleShortcutsTests {
         let url = try #require(Bundle.module.url(forResource: "Shortcuts", withExtension: "json", subdirectory: "Fixtures"))
         let result = try SpectacleShortcuts.parse(Data(contentsOf: url))
         #expect(result.skipped.isEmpty)
-        #expect(result.bindings.count == WindowAction.allCases.count)
+        #expect(result.bindings.count == 18)
         #expect(result.bindings == SpectacleShortcuts.defaults)
     }
 
