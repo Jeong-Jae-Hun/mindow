@@ -180,7 +180,8 @@ public enum WindowLayout {
     /// of 1366) leaves a gap one point off. Half-up rounding shifts with whole points,
     /// so both sides of an edge round the same way. Gap 0 keeps the old frames as is.
     private static func tiled(_ r: CGRect, _ context: Context) -> CGRect {
-        let (s, gap) = (context.screen, context.gap)
+        // Frames land on whole points, so a gap under one point would round away.
+        let (s, gap) = (context.screen, context.gap.rounded())
         guard gap > 0 else { return r }
         let left = abs(r.minX - s.minX) <= tolerance ? gap : gap / 2
         let right = abs(r.maxX - s.maxX) <= tolerance ? gap : gap / 2
