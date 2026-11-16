@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     lazy var settings = SettingsWindowController(updates: updates)
     private var dragSnap: DragSnap?
     private var autoPlacement: AutoPlacement?
+    private var displayRestore: DisplayRestore?
 
     /// A URL that launches Mindow arrives before `applicationDidFinishLaunching`, so the
     /// defaults its action reads are set here, and the app it means is read before
@@ -18,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Preferences.cycleOnRepeat: true,
             Preferences.dragSnap: true,
             Preferences.showHUD: true,
+            Preferences.restoreOnDisplayChange: true,
             Preferences.checkForUpdates: true,
         ])
         Shortcuts.frontmost.update(NSWorkspace.shared.frontmostApplication)
@@ -27,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Shortcuts.register { [windows] action in windows.perform(action) }
         dragSnap = DragSnap(windows: windows)
         autoPlacement = AutoPlacement(windows: windows)
+        displayRestore = DisplayRestore(windows: windows)
         updates.start()
         if !AXIsProcessTrusted() || SpectacleShortcuts.isSpectacleRunning {
             settings.show()

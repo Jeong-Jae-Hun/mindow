@@ -4,12 +4,12 @@ import MindowCore
 
 // ─── Accessibility ───
 
-private let positionAttribute = AXAttribute<CGPoint>(name: kAXPositionAttribute, type: .cgPoint)
-private let sizeAttribute = AXAttribute<CGSize>(name: kAXSizeAttribute, type: .cgSize)
+let positionAttribute = AXAttribute<CGPoint>(name: kAXPositionAttribute, type: .cgPoint)
+let sizeAttribute = AXAttribute<CGSize>(name: kAXSizeAttribute, type: .cgSize)
 /// A window in its own macOS Space; it can't be moved or resized.
-private let fullScreenAttribute = "AXFullScreen"
+let fullScreenAttribute = "AXFullScreen"
 
-private struct AXAttribute<Value: BitwiseCopyable> {
+struct AXAttribute<Value: BitwiseCopyable> {
     let name: String
     let type: AXValueType
 }
@@ -30,7 +30,12 @@ final class WindowManager {
     static let shared = WindowManager()
     private var cycle = RepeatCycle()
     private var cycleWindow: AXUIElement?
-    private var history = MoveHistory<AXUIElement>()
+    /// Every change is a window Mindow moved (or an undo step), which `onMove` hears.
+    private var history = MoveHistory<AXUIElement>() {
+        didSet { onMove?() }
+    }
+    /// Display restore records frames again soon after Mindow moves a window.
+    var onMove: (@MainActor () -> Void)?
     private var maximized = MaximizeMemory<AXUIElement>()
     /// Windows `autoPlace` is waiting on or moving.
     private var autoPlacing: Set<AXUIElement> = []
@@ -294,9 +299,7 @@ extension AXUIElement {
         guard AXUIElementCopyAttributeValue(self, kAXWindowsAttribute as CFString, &all) == .success else { return [] }
         return all as? [AXUIElement] ?? []
     }
-}
 
-private extension AXUIElement {
     /// The app element's focused window. Also answers for an app that isn't in front.
     var focusedWindow: AXUIElement? {
         var focused: CFTypeRef?

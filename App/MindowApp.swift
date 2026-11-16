@@ -68,6 +68,8 @@ enum Preferences {
     /// Plist array of `{bundleID, action, display?}` (`AppRules`): new windows of those
     /// apps are placed by the action.
     static let appRules = "mindow.appRules"
+    /// Windows go back where they were when a set of displays seen before comes back.
+    static let restoreOnDisplayChange = "mindow.restoreOnDisplayChange"
     /// Dragging a window to a screen edge places it there.
     static let dragSnap = "mindow.dragSnap"
     /// A short label names each action that moved a window (`ActionHUD`).
