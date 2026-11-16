@@ -30,6 +30,7 @@ final class WindowManager {
     private var cycleWindow: AXUIElement?
     private var history = MoveHistory<AXUIElement>()
     private var maximized = MaximizeMemory<AXUIElement>()
+    private let hud = ActionHUD()
     /// The frontmost app when the last menu opened. A menu bar click acts on it, not on
     /// whatever is frontmost when the item fires, in case opening the menu changed that.
     private(set) var menuTarget: NSRunningApplication?
@@ -72,10 +73,14 @@ final class WindowManager {
             guard let target, let targetIndex = WindowLayout.screenIndex(for: target, among: screens) else { return }
             let applied = window.setFrame(target, within: screens[targetIndex])
             let reached = applied.map { WindowLayout.isClose($0, target) } ?? false
+            let moved = didMove(applied, from: current)
             // Keep the step when the window got there, even if it was already there
             // (moved by hand). Otherwise the opposite call puts both stacks back.
-            if !reached, !didMove(applied, from: current) {
+            if !reached, !moved {
                 _ = undoing ? history.redo(for: window, current: target) : history.undo(for: window, current: target)
+            }
+            if moved {
+                hud.show(ActionLabel.text(for: action, step: 0), on: screens[targetIndex])
             }
         case .moveToNextDisplay, .moveToPreviousDisplay:
             guard screens.count > 1 else { return }
@@ -83,6 +88,7 @@ final class WindowManager {
             let to = screens[(index + offset + screens.count) % screens.count]
             if didMove(window.setFrame(WindowLayout.moveProportionally(current, between: (screen, to)), within: to), from: current) {
                 history.record(current, for: window)
+                hud.show(ActionLabel.text(for: action, step: 0), on: to)
             }
         case .splitWithPrevious:
             // Nothing moves unless both windows can: a lone half is not what was asked
@@ -108,11 +114,18 @@ final class WindowManager {
                 return
             }
             guard let otherApplied = other.setFrame(frames.previous, within: screen) else { return }
-            if didMove(otherApplied, from: otherCurrent) {
+            let otherMoved = didMove(otherApplied, from: otherCurrent)
+            if otherMoved {
                 history.record(otherCurrent, for: other)
             }
-            if didMove(window.setFrame(frames.current, within: screen), from: current) {
+            let applied = window.setFrame(frames.current, within: screen)
+            let moved = didMove(applied, from: current)
+            if moved {
                 history.record(current, for: window)
+            }
+            // A window that didn't answer leaves a half-done split: no label for that.
+            if applied != nil, otherMoved || moved {
+                hud.show(ActionLabel.text(for: action, step: 0), on: screen)
             }
         default:
             // The toggle covers size cycling; thirds and fourths always walk their cells.
@@ -135,6 +148,7 @@ final class WindowManager {
                 } else if action == .moveToFullscreen {
                     maximized.remember(current, for: window)
                 }
+                hud.show(ActionLabel.text(for: action, step: target.step), on: destination)
             }
             cycle.record(action, placement: .init(frame: applied, step: target.step))
         }
@@ -183,6 +197,7 @@ final class WindowManager {
             if target.action == .moveToFullscreen {
                 maximized.remember(current, for: window)
             }
+            hud.show(ActionLabel.text(for: target.action, step: placement.step), on: screen)
         }
         cycle = RepeatCycle()
         cycleWindow = window

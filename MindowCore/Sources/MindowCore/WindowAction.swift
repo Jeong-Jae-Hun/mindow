@@ -107,6 +107,13 @@ public enum WindowAction: String, CaseIterable, Sendable {
         case thirds, fourths
         /// Rows whatever the screen's orientation.
         case rowThirds
+
+        public var count: Int {
+            switch self {
+            case .thirds, .rowThirds: 3
+            case .fourths: 4
+            }
+        }
     }
 
     /// Whether a press can continue the cycle `previous` left: the same half or corner

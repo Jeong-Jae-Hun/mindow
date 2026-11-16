@@ -89,12 +89,12 @@ public enum WindowLayout {
         }
         let landscape = s.width >= s.height
         switch action {
-        case .moveToNextThird: return cell(context, (count: 3, rows: !landscape, offset: 1))
-        case .moveToPreviousThird: return cell(context, (count: 3, rows: !landscape, offset: -1))
-        case .moveToNextFourth: return cell(context, (count: 4, rows: !landscape, offset: 1))
-        case .moveToPreviousFourth: return cell(context, (count: 4, rows: !landscape, offset: -1))
-        case .moveToNextRowThird: return cell(context, (count: 3, rows: true, offset: 1))
-        case .moveToPreviousRowThird: return cell(context, (count: 3, rows: true, offset: -1))
+        case .moveToNextThird: return cell(context, (count: WindowAction.CellGrid.thirds.count, rows: !landscape, offset: 1))
+        case .moveToPreviousThird: return cell(context, (count: WindowAction.CellGrid.thirds.count, rows: !landscape, offset: -1))
+        case .moveToNextFourth: return cell(context, (count: WindowAction.CellGrid.fourths.count, rows: !landscape, offset: 1))
+        case .moveToPreviousFourth: return cell(context, (count: WindowAction.CellGrid.fourths.count, rows: !landscape, offset: -1))
+        case .moveToNextRowThird: return cell(context, (count: WindowAction.CellGrid.rowThirds.count, rows: true, offset: 1))
+        case .moveToPreviousRowThird: return cell(context, (count: WindowAction.CellGrid.rowThirds.count, rows: true, offset: -1))
         default: return nil
         }
     }
