@@ -12,31 +12,31 @@ struct MaximizeMemoryTests {
     func 토글() {
         var memory = MaximizeMemory<Int>()
         memory.remember(small, for: 1)
-        #expect(memory.restoreFrame(for: 1, current: full, fullscreen: full) == small)
+        #expect(memory.restoreFrame(for: 1, at: (full, full)) == small)
         memory.forget(1)
-        #expect(memory.restoreFrame(for: 1, current: full, fullscreen: full) == nil)
+        #expect(memory.restoreFrame(for: 1, at: (full, full)) == nil)
     }
 
     @Test("앱이 반올림해 몇 pt 어긋난 전체 화면도 전체 상태로 본다")
     func 허용오차() {
         var memory = MaximizeMemory<Int>()
         memory.remember(small, for: 1)
-        #expect(memory.restoreFrame(for: 1, current: full.insetBy(dx: 1, dy: 1), fullscreen: full) == small)
+        #expect(memory.restoreFrame(for: 1, at: (full.insetBy(dx: 1, dy: 1), full)) == small)
     }
 
     @Test("기억이 없으면 복원할 위치가 없다")
     func 기억없음() {
         let memory = MaximizeMemory<Int>()
-        #expect(memory.restoreFrame(for: 1, current: full, fullscreen: full) == nil)
+        #expect(memory.restoreFrame(for: 1, at: (full, full)) == nil)
     }
 
     @Test("전체 화면에서 다른 곳으로 옮긴 창은 복원하지 않고, 다시 전체로 가면 기억을 덮어쓴다")
     func 덮어쓰기() {
         var memory = MaximizeMemory<Int>()
         memory.remember(small, for: 1)
-        #expect(memory.restoreFrame(for: 1, current: half, fullscreen: full) == nil)
+        #expect(memory.restoreFrame(for: 1, at: (half, full)) == nil)
         memory.remember(half, for: 1)
-        #expect(memory.restoreFrame(for: 1, current: full, fullscreen: full) == half)
+        #expect(memory.restoreFrame(for: 1, at: (full, full)) == half)
     }
 
     @Test("창마다 기억이 따로 있다")
@@ -44,8 +44,8 @@ struct MaximizeMemoryTests {
         var memory = MaximizeMemory<Int>()
         memory.remember(small, for: 1)
         memory.remember(half, for: 2)
-        #expect(memory.restoreFrame(for: 2, current: full, fullscreen: full) == half)
+        #expect(memory.restoreFrame(for: 2, at: (full, full)) == half)
         memory.forget(2)
-        #expect(memory.restoreFrame(for: 1, current: full, fullscreen: full) == small)
+        #expect(memory.restoreFrame(for: 1, at: (full, full)) == small)
     }
 }

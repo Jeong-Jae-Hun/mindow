@@ -14,10 +14,10 @@ public struct MaximizeMemory<Key: Hashable> {
     }
 
     /// The frame to go back to, or nil when nothing is remembered or the window no
-    /// longer sits at `fullscreen` (moved since). Call `forget` once the window got
+    /// longer sits at `position.fullscreen` (moved since). Call `forget` once the window got
     /// there, so a failed restore can be tried again.
-    public func restoreFrame(for key: Key, current: CGRect, fullscreen: CGRect) -> CGRect? {
-        guard WindowLayout.isClose(current, fullscreen) else { return nil }
+    public func restoreFrame(for key: Key, at position: (current: CGRect, fullscreen: CGRect)) -> CGRect? {
+        guard WindowLayout.isClose(position.current, position.fullscreen) else { return nil }
         return frames[key]
     }
 

@@ -90,7 +90,7 @@ final class WindowManager {
             // Fullscreen again on a window Mindow maximized goes back to the frame it had.
             // Like undo, that frame may be on another display, so fit it to its own screen.
             let restored = action == .moveToFullscreen
-                ? maximized.restoreFrame(for: window, current: current, fullscreen: target.frame)
+                ? maximized.restoreFrame(for: window, at: (current, target.frame))
                 : nil
             let destination = restored.flatMap { WindowLayout.screenIndex(for: $0, among: screens) }.map { screens[$0] } ?? screen
             guard let applied = window.setFrame(restored ?? target.frame, within: destination) else { return }
