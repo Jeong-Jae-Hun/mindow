@@ -8,13 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     lazy var settings = SettingsWindowController(updates: updates)
     private var dragSnap: DragSnap?
 
-    /// A URL that launches Mindow arrives before `applicationDidFinishLaunching`, when
-    /// Mindow may already be in front, so the app it means is read here, before that.
+    /// A URL that launches Mindow arrives before `applicationDidFinishLaunching`, so the
+    /// defaults its action reads are set here, and the app it means is read before
+    /// Mindow may come to the front.
     func applicationWillFinishLaunching(_ notification: Notification) {
-        Shortcuts.frontmost.update(NSWorkspace.shared.frontmostApplication)
-    }
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [
             Preferences.showMenuBarIcon: true,
             Preferences.cycleOnRepeat: true,
@@ -22,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Preferences.showHUD: true,
             Preferences.checkForUpdates: true,
         ])
+        Shortcuts.frontmost.update(NSWorkspace.shared.frontmostApplication)
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
         Shortcuts.register { [windows] action in windows.perform(action) }
         dragSnap = DragSnap(windows: windows)
         updates.start()
