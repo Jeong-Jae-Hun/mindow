@@ -59,4 +59,6 @@ enum Preferences {
     /// Points between tiled windows and around them; 0 (unset) keeps v0.1.1's frames.
     static let gap = "mindow.gap"
     static let importedFromSpectacleAt = "mindow.importedFromSpectacleAt"
+    /// Bundle IDs; window action shortcuts are off while one of these apps is in front.
+    static let excludedApps = "mindow.excludedApps"
 }

@@ -22,8 +22,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { notification in
             let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             guard app?.bundleIdentifier == SpectacleShortcuts.bundleIdentifier else { return }
-            MainActor.assumeIsolated { Shortcuts.reregister() }
+            MainActor.assumeIsolated { Shortcuts.sync() }
         }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            MainActor.assumeIsolated { Shortcuts.frontmost.update(app) }
+        }
+        // An excluded app can already be in front at launch; no activation follows.
+        Shortcuts.frontmost.update(NSWorkspace.shared.frontmostApplication)
     }
 
     /// With the menu bar icon hidden, opening the app again is the only way back to settings.
