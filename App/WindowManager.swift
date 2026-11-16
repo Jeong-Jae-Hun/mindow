@@ -44,36 +44,42 @@ final class WindowManager {
 
     /// Shortcuts act on the frontmost app; the menu passes `menuTarget`.
     func perform(_ action: WindowAction, in target: NSRunningApplication? = NSWorkspace.shared.frontmostApplication) {
-        var focused: CFTypeRef?
         guard AXIsProcessTrusted(),
               let app = target,
-              AXUIElementCopyAttributeValue(
-                  AXUIElementCreateApplication(app.processIdentifier),
-                  kAXFocusedWindowAttribute as CFString,
-                  &focused
-              ) == .success,
-              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
+              let window = AXUIElementCreateApplication(app.processIdentifier).element(kAXFocusedWindowAttribute)
         else {
             NSSound.beep()
             return
         }
-        let window = unsafeDowncast(focused, to: AXUIElement.self)
-        guard let current = window.frame, let primaryHeight = NSScreen.screens.first?.frame.height else { return }
-
-        // Visible frames (without menu bar and Dock), left to right so Next/Previous
-        // Display walk the physical arrangement.
-        let screens = NSScreen.screens
-            .map { ScreenGeometry.flipped($0.visibleFrame, primaryScreenHeight: primaryHeight) }
-            .sorted { ($0.minX, $0.minY) < ($1.minX, $1.minY) }
-        guard let index = WindowLayout.screenIndex(for: current, among: screens) else { return }
-        let screen = screens[index]
+        let screens = NSScreen.axFrames.map(\.visible)
+        guard let current = window.frame, let index = WindowLayout.screenIndex(for: current, among: screens) else { return }
 
         // A cycle continues only on the same window with nothing else in between.
         if cycleWindow != window || !(action.cyclesOnRepeat || action.cellGrid != nil) {
             cycle = RepeatCycle()
         }
         cycleWindow = window
+        move(window, action, from: current, screen: index, among: screens)
+    }
 
+    /// Places a window dropped by drag snap, found by its owner and its frame at the
+    /// drop. It goes on the screen under the cursor (`screen` indexes `NSScreen.axFrames`),
+    /// not the one holding most of the window, and starts a fresh cycle as if its shortcut
+    /// was pressed once, so the shortcut right after continues from there.
+    func snap(_ action: WindowAction, pid: pid_t, frame: CGRect, screen: Int) {
+        let screens = NSScreen.axFrames.map(\.visible)
+        guard AXIsProcessTrusted(), screens.indices.contains(screen),
+              let window = AXUIElement.window(of: pid, at: frame),
+              let current = window.frame
+        else { return }
+        cycle = RepeatCycle()
+        cycleWindow = window
+        move(window, action, from: current, screen: screen, among: screens)
+    }
+
+    /// `screens` are visible frames; `screen` indexes the one the action is relative to.
+    private func move(_ window: AXUIElement, _ action: WindowAction, from current: CGRect, screen index: Int, among screens: [CGRect]) {
+        let screen = screens[index]
         switch action {
         case .undoLastMove, .redoLastMove:
             let undoing = action == .undoLastMove
@@ -121,7 +127,49 @@ final class WindowManager {
     }
 }
 
+// ─── Screens ───
+
+extension NSScreen {
+    /// Every screen's frame and visible frame (without menu bar and Dock) in AX
+    /// coordinates, left to right so Next/Previous Display walk the physical arrangement.
+    @MainActor static var axFrames: [(frame: CGRect, visible: CGRect)] {
+        guard let primaryHeight = screens.first?.frame.height else { return [] }
+        return screens
+            .map { (ScreenGeometry.flipped($0.frame, primaryScreenHeight: primaryHeight),
+                    ScreenGeometry.flipped($0.visibleFrame, primaryScreenHeight: primaryHeight)) }
+            .sorted { ($0.visible.minX, $0.visible.minY) < ($1.visible.minX, $1.visible.minY) }
+    }
+}
+
 private extension AXUIElement {
+    /// Upper bound per AX message, so an app that stopped responding can't hold the
+    /// main thread for the system's default six seconds.
+    static let messagingTimeout: Float = 0.25
+
+    /// The window of `pid` whose frame is `frame`: the focused one when it matches
+    /// (a dragged window usually is), otherwise the first match among all its windows.
+    static func window(of pid: pid_t, at frame: CGRect) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, messagingTimeout)
+        let focused = app.element(kAXFocusedWindowAttribute).map { [$0] } ?? []
+        var all: CFTypeRef?
+        let windows = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &all) == .success
+            ? (all as? [AXUIElement]) ?? []
+            : []
+        return (focused + windows).first { window in
+            AXUIElementSetMessagingTimeout(window, messagingTimeout)
+            return window.frame.map { WindowLayout.isClose($0, frame) } ?? false
+        }
+    }
+
+    func element(_ attribute: String) -> AXUIElement? {
+        var raw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(self, attribute as CFString, &raw) == .success,
+              let raw, CFGetTypeID(raw) == AXUIElementGetTypeID()
+        else { return nil }
+        return unsafeDowncast(raw, to: AXUIElement.self)
+    }
+
     var frame: CGRect? {
         guard let origin = value(positionAttribute), let size = value(sizeAttribute) else { return nil }
         return CGRect(origin: origin, size: size)

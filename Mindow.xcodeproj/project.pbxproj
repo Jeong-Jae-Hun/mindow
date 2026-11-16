@@ -12,6 +12,7 @@
 		60F42D4B23158C4AC25A2178 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 32C037F0CA73FEF8B83758B6 /* KeyboardShortcuts */; };
 		8F819657C961CCE3DF24B741 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */; };
 		AB95BC7FC6E897E0792ABB5E /* MindowCore in Frameworks */ = {isa = PBXBuildFile; productRef = 82932A3515153F2BDA7DC489 /* MindowCore */; };
+		AF0307CA924D1A64CC06CDEA /* DragSnap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E531D3407C954CF0C7D26BE8 /* DragSnap.swift */; };
 		B5A23269A80EC96E4F77102A /* SpectacleImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */; };
 		E483D75A411321D2E56BB09D /* Shortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6727C2AF95919FB165B7C044 /* Shortcuts.swift */; };
 		F639D4212B2EDBF60E142EF5 /* MindowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40545EDA75EEC02F3900FED /* MindowApp.swift */; };
@@ -26,6 +27,7 @@
 		932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectacleImporter.swift; sourceTree = "<group>"; };
 		9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B40545EDA75EEC02F3900FED /* MindowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindowApp.swift; sourceTree = "<group>"; };
+		E531D3407C954CF0C7D26BE8 /* DragSnap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragSnap.swift; sourceTree = "<group>"; };
 		EB3EA23FA447AF88C9C80B76 /* MindowCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MindowCore; path = MindowCore; sourceTree = SOURCE_ROOT; };
 		EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -64,6 +66,7 @@
 			children = (
 				EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */,
 				9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */,
+				E531D3407C954CF0C7D26BE8 /* DragSnap.swift */,
 				B40545EDA75EEC02F3900FED /* MindowApp.swift */,
 				37649C61739B946CBB1A0836 /* SettingsView.swift */,
 				6727C2AF95919FB165B7C044 /* Shortcuts.swift */,
@@ -157,6 +160,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8F819657C961CCE3DF24B741 /* AppDelegate.swift in Sources */,
+				AF0307CA924D1A64CC06CDEA /* DragSnap.swift in Sources */,
 				F639D4212B2EDBF60E142EF5 /* MindowApp.swift in Sources */,
 				3EA23B80EA69BEBA459E9FE6 /* SettingsView.swift in Sources */,
 				E483D75A411321D2E56BB09D /* Shortcuts.swift in Sources */,
