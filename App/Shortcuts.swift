@@ -1,3 +1,4 @@
+import AppKit
 import KeyboardShortcuts
 import MindowCore
 import Observation
@@ -14,6 +15,7 @@ enum Shortcuts {
     /// Spectacle has no such action, so it has no default and an import never sets it.
     static let togglePause = KeyboardShortcuts.Name("TogglePause")
     static let pause = ShortcutPause()
+    static let frontmost = FrontmostApp()
 
     static func register(_ handler: @escaping @MainActor (WindowAction) -> Void) {
         for (action, name) in names {
@@ -22,11 +24,16 @@ enum Shortcuts {
         KeyboardShortcuts.onKeyDown(for: togglePause) { pause.toggle() }
     }
 
-    /// Registration that failed earlier is dropped, so enabling again retries it
-    /// without adding a second handler. While paused the shortcuts stay off.
-    static func reregister() {
-        guard !pause.isPaused else { return }
-        KeyboardShortcuts.enable(Array(names.values))
+    /// Turns the window action shortcuts on or off by `ExcludedApps.allowsActionShortcuts`;
+    /// TogglePause is never touched. Registration that failed earlier is dropped, so
+    /// enabling again retries it without adding a second handler.
+    static func sync() {
+        let actionNames = Array(names.values)
+        if ExcludedApps.stored.allowsActionShortcuts(paused: pause.isPaused, frontmost: frontmost.bundleID) {
+            KeyboardShortcuts.enable(actionNames)
+        } else {
+            KeyboardShortcuts.disable(actionNames)
+        }
     }
 
     static func apply(_ bindings: [WindowAction: KeyBinding]) {
@@ -50,10 +57,35 @@ final class ShortcutPause {
 
     func toggle() {
         isPaused.toggle()
-        if isPaused {
-            KeyboardShortcuts.disable(Array(Shortcuts.names.values))
-        } else {
-            Shortcuts.reregister()
+        Shortcuts.sync()
+    }
+}
+
+/// Follows app activation so shortcuts turn off under an excluded app.
+@MainActor @Observable
+final class FrontmostApp {
+    @ObservationIgnored private(set) var bundleID: String?
+    /// Opening Settings brings Mindow to the front, so "Add Frontmost App" needs the
+    /// app that was in front before it.
+    private(set) var lastOther: NSRunningApplication?
+
+    func update(_ app: NSRunningApplication?) {
+        bundleID = app?.bundleIdentifier
+        if let app, app != NSRunningApplication.current, app != lastOther {
+            lastOther = app
         }
+        Shortcuts.sync()
+    }
+}
+
+extension ExcludedApps {
+    @MainActor static var stored: ExcludedApps {
+        ExcludedApps(UserDefaults.standard.stringArray(forKey: Preferences.excludedApps) ?? [])
+    }
+
+    /// Only Settings calls this, on a user change, then applies the list to the app in front.
+    @MainActor func save() {
+        UserDefaults.standard.set(bundleIDs, forKey: Preferences.excludedApps)
+        Shortcuts.sync()
     }
 }
