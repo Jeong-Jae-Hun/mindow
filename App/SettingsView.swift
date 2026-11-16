@@ -143,7 +143,18 @@ private struct ExcludedAppsSection: View {
             } else {
                 Button("Add Frontmost App", systemImage: "plus") {}.disabled(true)
             }
-            Button("Choose App…", systemImage: "plus") { chooseApp() }
+            Button("Choose App…", systemImage: "plus") {
+                let panel = NSOpenPanel()
+                panel.message = "Choose an app whose shortcuts Mindow should leave alone"
+                panel.allowedContentTypes = [.application]
+                panel.directoryURL = URL(filePath: "/Applications")
+                guard panel.runModal() == .OK, let url = panel.url else { return }
+                guard let bundleID = Bundle(url: url)?.bundleIdentifier else {
+                    NSSound.beep()
+                    return
+                }
+                change { $0.add(bundleID) }
+            }
         } header: {
             Text("Excluded Apps")
         } footer: {
@@ -157,19 +168,8 @@ private struct ExcludedAppsSection: View {
         edit(&next)
         guard next != apps else { return }
         apps = next
-        next.save()
-    }
-
-    private func chooseApp() {
-        let panel = NSOpenPanel()
-        panel.message = "Choose an app whose shortcuts Mindow should leave alone"
-        panel.allowedContentTypes = [.application]
-        panel.directoryURL = URL(filePath: "/Applications")
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard let bundleID = Bundle(url: url)?.bundleIdentifier else {
-            NSSound.beep()
-            return
-        }
-        change { $0.add(bundleID) }
+        UserDefaults.standard.set(next.bundleIDs, forKey: Preferences.excludedApps)
+        // Applies the new list to the app in front right away.
+        Shortcuts.sync()
     }
 }

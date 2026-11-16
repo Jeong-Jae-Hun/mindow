@@ -82,10 +82,4 @@ extension ExcludedApps {
     @MainActor static var stored: ExcludedApps {
         ExcludedApps(UserDefaults.standard.stringArray(forKey: Preferences.excludedApps) ?? [])
     }
-
-    /// Only Settings calls this, on a user change, then applies the list to the app in front.
-    @MainActor func save() {
-        UserDefaults.standard.set(bundleIDs, forKey: Preferences.excludedApps)
-        Shortcuts.sync()
-    }
 }
