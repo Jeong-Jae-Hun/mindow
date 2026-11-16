@@ -8,11 +8,15 @@ public enum WindowLayout {
         public var screen: CGRect
         /// Step of the same cycle the last press used, from `RepeatCycle`. Nil starts over.
         public var previousStep: Int?
+        /// Space around tiled placements: this much from the screen edges and between
+        /// neighbouring tiles. Center, Make Larger and Make Smaller ignore it.
+        public var gap: CGFloat
 
-        public init(window: CGRect, screen: CGRect, previousStep: Int?) {
+        public init(window: CGRect, screen: CGRect, previousStep: Int?, gap: CGFloat = 0) {
             self.window = window
             self.screen = screen
             self.previousStep = previousStep
+            self.gap = gap
         }
     }
 
@@ -62,7 +66,8 @@ public enum WindowLayout {
                 ? CGRect(x: s.maxX - s.width * 2 / 3, y: s.minY, width: s.width * 2 / 3, height: s.height)
                 : CGRect(x: s.minX, y: s.maxY - s.height * 2 / 3, width: s.width, height: s.height * 2 / 3)
         case .moveToFullscreen: s
-        case .maximizeHeight: CGRect(x: context.window.minX, y: s.minY, width: context.window.width, height: s.height)
+        case .maximizeHeight:
+            CGRect(x: context.window.minX, y: s.minY + context.gap, width: context.window.width, height: s.height - context.gap * 2)
         case .moveToCenter:
             CGRect(
                 x: s.midX - min(context.window.width, s.width) / 2,
@@ -75,7 +80,12 @@ public enum WindowLayout {
         case .moveToNextDisplay, .moveToPreviousDisplay, .undoLastMove, .redoLastMove: nil
         }
         if let rect {
-            return Placement(frame: rounded(rect), step: action.cyclesOnRepeat ? step : 0)
+            // Maximize Height applied the gap above to its height only; its x and width stay the window's.
+            let framed = switch action {
+            case .moveToCenter, .makeLarger, .makeSmaller, .maximizeHeight: rect
+            default: tiled(rect, in: s, gap: context.gap)
+            }
+            return Placement(frame: rounded(framed), step: action.cyclesOnRepeat ? step : 0)
         }
         let landscape = s.width >= s.height
         switch action {
@@ -141,13 +151,16 @@ public enum WindowLayout {
         let (count, rows, offset) = walk
         let n = CGFloat(count)
         let cells = (0..<count).map { i -> CGRect in
-            rows
+            let cell = rows
                 ? CGRect(x: s.minX, y: s.minY + s.height * CGFloat(i) / n, width: s.width, height: s.height / n)
                 : CGRect(x: s.minX + s.width * CGFloat(i) / n, y: s.minY, width: s.width / n, height: s.height)
+            return tiled(cell, in: s, gap: context.gap)
         }
+        // Every cell has the same cross-axis extent: the screen less the gap.
+        let span = cells[0]
         let spansCrossAxis = rows
-            ? abs(window.minX - s.minX) <= tolerance && abs(window.width - s.width) <= tolerance
-            : abs(window.minY - s.minY) <= tolerance && abs(window.height - s.height) <= tolerance
+            ? abs(window.minX - span.minX) <= tolerance && abs(window.width - span.width) <= tolerance
+            : abs(window.minY - span.minY) <= tolerance && abs(window.height - span.height) <= tolerance
         let overlaps = cells.map { cell -> CGFloat in
             let i = cell.intersection(window)
             return i.isNull ? 0 : i.width * i.height
@@ -159,6 +172,16 @@ public enum WindowLayout {
             offset > 0 ? 0 : count - 1
         }
         return Placement(frame: rounded(cells[index]), step: index)
+    }
+
+    /// Insets a tile by the full gap on edges that touch the screen and by half of it
+    /// on edges shared with a neighbour, so two neighbours end up exactly `gap` apart.
+    private static func tiled(_ r: CGRect, in s: CGRect, gap: CGFloat) -> CGRect {
+        let left = abs(r.minX - s.minX) <= tolerance ? gap : gap / 2
+        let right = abs(r.maxX - s.maxX) <= tolerance ? gap : gap / 2
+        let top = abs(r.minY - s.minY) <= tolerance ? gap : gap / 2
+        let bottom = abs(r.maxY - s.maxY) <= tolerance ? gap : gap / 2
+        return CGRect(x: r.minX + left, y: r.minY + top, width: r.width - left - right, height: r.height - top - bottom)
     }
 
     private static func resized(_ context: Context, by direction: CGFloat) -> CGRect {

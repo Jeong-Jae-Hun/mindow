@@ -83,7 +83,9 @@ final class WindowManager {
             // The toggle covers size cycling; thirds and fourths always walk their cells.
             let remembered = action.cellGrid != nil || UserDefaults.standard.bool(forKey: Preferences.cycleOnRepeat)
             let previous = remembered ? cycle.previousStep(for: action, current: current) : nil
-            guard let target = WindowLayout.placement(for: action, in: .init(window: current, screen: screen, previousStep: previous)),
+            let gap = CGFloat(UserDefaults.standard.double(forKey: Preferences.gap))
+            let context = WindowLayout.Context(window: current, screen: screen, previousStep: previous, gap: gap)
+            guard let target = WindowLayout.placement(for: action, in: context),
                   let applied = window.setFrame(target.frame, within: screen)
             else { return }
             if didMove(applied, from: current) {

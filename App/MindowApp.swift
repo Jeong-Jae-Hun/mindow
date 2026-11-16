@@ -30,5 +30,7 @@ struct MindowApp: App {
 enum Preferences {
     static let showMenuBarIcon = "mindow.showMenuBarIcon"
     static let cycleOnRepeat = "mindow.cycleOnRepeat"
+    /// Points between tiled windows and around them; 0 (unset) keeps v0.1.1's frames.
+    static let gap = "mindow.gap"
     static let importedFromSpectacleAt = "mindow.importedFromSpectacleAt"
 }

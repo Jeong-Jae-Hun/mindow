@@ -24,6 +24,7 @@ final class SettingsWindowController {
 struct SettingsView: View {
     @AppStorage(Preferences.cycleOnRepeat) private var cycleOnRepeat = true
     @AppStorage(Preferences.showMenuBarIcon) private var showMenuBarIcon = true
+    @AppStorage(Preferences.gap) private var gap = 0.0
     @State private var trusted = AXIsProcessTrusted()
     @State private var spectacleRunning = SpectacleShortcuts.isSpectacleRunning
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -55,6 +56,13 @@ struct SettingsView: View {
             }
             Section("General") {
                 Toggle("Cycle sizes when the same shortcut is pressed again", isOn: $cycleOnRepeat)
+                // Even steps keep the half gap between neighbours on whole points.
+                LabeledContent("Window gap") {
+                    HStack {
+                        Slider(value: $gap, in: 0...32, step: 2)
+                        Text("\(Int(gap)) px").monospacedDigit().frame(width: 44, alignment: .trailing)
+                    }
+                }
                 Toggle("Show icon in menu bar", isOn: $showMenuBarIcon)
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
