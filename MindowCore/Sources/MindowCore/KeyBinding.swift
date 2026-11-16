@@ -1,7 +1,7 @@
 import Foundation
 
 /// A shortcut in Carbon terms, the form `KeyboardShortcuts.Shortcut(carbonKeyCode:carbonModifiers:)` takes.
-public struct KeyBinding: Equatable, Sendable {
+public struct KeyBinding: Hashable, Sendable {
     public let carbonKeyCode: Int
     public let carbonModifiers: Int
 

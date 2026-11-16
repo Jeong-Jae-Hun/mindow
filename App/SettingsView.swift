@@ -39,6 +39,7 @@ struct SettingsView: View {
     @State private var spectacleRunning = SpectacleShortcuts.isSpectacleRunning
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
+    @State private var conflicts = Shortcuts.conflicts()
 
     var body: some View {
         Form {
@@ -57,14 +58,14 @@ struct SettingsView: View {
                 }
             }
             Section("Shortcuts") {
-                KeyboardShortcuts.Recorder("Pause Shortcuts", name: Shortcuts.togglePause)
+                recorder(Shortcuts.togglePauseTitle, name: Shortcuts.togglePause)
                 Button("Import from Spectacle…") { SpectacleImporter.run() }
             }
             ForEach(WindowAction.Family.allCases, id: \.self) { family in
                 Section(family.title) {
                     ForEach(family.actions, id: \.self) { action in
                         if let name = Shortcuts.names[action] {
-                            KeyboardShortcuts.Recorder(action.title, name: name)
+                            recorder(action.title, name: name)
                         }
                     }
                 }
@@ -129,8 +130,29 @@ struct SettingsView: View {
                 try? await Task.sleep(for: .seconds(1))
             }
         }
+        // KeyboardShortcuts posts its own change notification only internally, and the
+        // recorder's onChange misses Spectacle imports, so any defaults write rechecks.
+        // Only @State is written here, never UserDefaults, so this can't feed itself.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: DispatchQueue.main)) { _ in
+            let next = Shortcuts.conflicts()
+            if next != conflicts { conflicts = next }
+        }
     }
 
+    private func recorder(_ title: String, name: KeyboardShortcuts.Name) -> some View {
+        LabeledContent(title) {
+            HStack {
+                if let others = conflicts[name] {
+                    let text = "Also used by: \(others.joined(separator: ", "))"
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.yellow)
+                        .help(text)
+                        .accessibilityLabel(text)
+                }
+                KeyboardShortcuts.Recorder(for: name)
+            }
+        }
+    }
 }
 
 /// Edits a local copy and writes UserDefaults only on a user change, never from a binding.

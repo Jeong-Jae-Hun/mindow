@@ -41,7 +41,7 @@ struct MindowApp: App {
                 }
                 Divider()
             }
-            Toggle("Pause Shortcuts", isOn: pausedBinding)
+            Toggle(Shortcuts.togglePauseTitle, isOn: pausedBinding)
                 .globalKeyboardShortcut(Shortcuts.togglePause)
             Divider()
             if let release = appDelegate.updates.available {
