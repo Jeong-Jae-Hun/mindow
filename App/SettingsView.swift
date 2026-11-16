@@ -71,6 +71,7 @@ struct SettingsView: View {
                 }
             }
             ExcludedAppsSection()
+            AutoPlacementSection()
             Section("General") {
                 Toggle("Cycle sizes when the same shortcut is pressed again", isOn: $cycleOnRepeat)
                 // Even steps keep the half gap between neighbours on whole points.
@@ -163,20 +164,8 @@ private struct ExcludedAppsSection: View {
     var body: some View {
         Section {
             ForEach(apps.bundleIDs, id: \.self) { bundleID in
-                let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
                 HStack {
-                    if let url {
-                        Image(nsImage: NSWorkspace.shared.icon(forFile: url.path(percentEncoded: false)))
-                            .resizable().frame(width: 20, height: 20)
-                        VStack(alignment: .leading) {
-                            Text(url.deletingPathExtension().lastPathComponent)
-                            Text(bundleID).foregroundStyle(.secondary).font(.caption)
-                        }
-                    } else {
-                        // Not installed (or not found by Launch Services); still excluded by ID.
-                        Image(systemName: "questionmark.app").frame(width: 20, height: 20)
-                        Text(bundleID)
-                    }
+                    AppLabel(bundleID: bundleID)
                     Spacer()
                     Button("Remove", systemImage: "minus.circle") { change { $0.remove(bundleID) } }
                         .labelStyle(.iconOnly).buttonStyle(.borderless)
@@ -191,15 +180,7 @@ private struct ExcludedAppsSection: View {
                 Button("Add Frontmost App", systemImage: "plus") {}.disabled(true)
             }
             Button("Choose App…", systemImage: "plus") {
-                let panel = NSOpenPanel()
-                panel.message = "Choose an app whose shortcuts Mindow should leave alone"
-                panel.allowedContentTypes = [.application]
-                panel.directoryURL = URL(filePath: "/Applications")
-                guard panel.runModal() == .OK, let url = panel.url else { return }
-                guard let bundleID = Bundle(url: url)?.bundleIdentifier else {
-                    NSSound.beep()
-                    return
-                }
+                guard let bundleID = chooseApp("Choose an app whose shortcuts Mindow should leave alone") else { return }
                 change { $0.add(bundleID) }
             }
         } header: {
@@ -219,4 +200,117 @@ private struct ExcludedAppsSection: View {
         // Applies the new list to the app in front right away.
         Shortcuts.sync()
     }
+}
+
+/// Same rule as `ExcludedAppsSection`: a local copy, written only on a user change. The
+/// pickers' bindings go through `change` too, so setting the value they show writes nothing.
+private struct AutoPlacementSection: View {
+    @State private var rules = AppRules.stored
+    private let frontmost = Shortcuts.frontmost
+
+    var body: some View {
+        Section {
+            ForEach(rules.rules, id: \.bundleID) { rule in
+                VStack(alignment: .leading) {
+                    HStack {
+                        AppLabel(bundleID: rule.bundleID)
+                        Spacer()
+                        Button("Remove", systemImage: "minus.circle") { change { $0.remove(rule.bundleID) } }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless)
+                    }
+                    HStack {
+                        Picker("Action", selection: binding(rule, \.action)) {
+                            ForEach(AppRule.actions, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        Picker("Display", selection: binding(rule, \.display)) {
+                            Text("Current Display").tag(Int?.none)
+                            ForEach(0..<NSScreen.screens.count, id: \.self) { index in
+                                Text("Display \(index + 1)").tag(Int?.some(index))
+                            }
+                            // A display that isn't connected now keeps its choice as one more item.
+                            if let display = rule.display, display >= NSScreen.screens.count {
+                                // Unnumbered: a hand-edited index can be any size, even Int.max.
+                                Text("Display Not Connected").tag(Int?.some(display))
+                            }
+                        }
+                    }
+                    .labelsHidden()
+                }
+            }
+            if let app = frontmost.lastOther, let bundleID = app.bundleIdentifier {
+                Button("Add Frontmost App (\(app.localizedName ?? bundleID))", systemImage: "plus") {
+                    change { $0.add(bundleID) }
+                }
+                .disabled(rules.rule(for: bundleID) != nil)
+            } else {
+                Button("Add Frontmost App", systemImage: "plus") {}.disabled(true)
+            }
+            Button("Choose App…", systemImage: "plus") {
+                guard let bundleID = chooseApp("Choose an app whose new windows Mindow should place") else { return }
+                change { $0.add(bundleID) }
+            }
+        } header: {
+            Text("Auto Placement")
+        } footer: {
+            Text("New windows of these apps take the action's place. Displays count from the left. Excluded apps are left alone.")
+                .foregroundStyle(.secondary).font(.caption)
+        }
+    }
+
+    private func binding<Value>(_ rule: AppRule, _ field: WritableKeyPath<AppRule, Value>) -> Binding<Value> {
+        Binding(
+            get: { rule[keyPath: field] },
+            set: { value in
+                var next = rule
+                next[keyPath: field] = value
+                change { $0.update(next) }
+            }
+        )
+    }
+
+    private func change(_ edit: (inout AppRules) -> Void) {
+        var next = rules
+        edit(&next)
+        guard next != rules else { return }
+        rules = next
+        UserDefaults.standard.set(next.plist, forKey: Preferences.appRules)
+    }
+}
+
+// ─── App list helpers ───
+
+/// An app's icon and name, found by bundle ID, or the bare ID when Launch Services
+/// can't find it (not installed); the setting still applies by ID.
+private struct AppLabel: View {
+    let bundleID: String
+
+    var body: some View {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path(percentEncoded: false)))
+                .resizable().frame(width: 20, height: 20)
+            VStack(alignment: .leading) {
+                Text(url.deletingPathExtension().lastPathComponent)
+                Text(bundleID).foregroundStyle(.secondary).font(.caption)
+            }
+        } else {
+            Image(systemName: "questionmark.app").frame(width: 20, height: 20)
+            Text(bundleID)
+        }
+    }
+}
+
+/// The bundle ID of an app picked in an open panel. Nil when cancelled; an app without
+/// a bundle ID beeps.
+@MainActor
+private func chooseApp(_ message: String) -> String? {
+    let panel = NSOpenPanel()
+    panel.message = message
+    panel.allowedContentTypes = [.application]
+    panel.directoryURL = URL(filePath: "/Applications")
+    guard panel.runModal() == .OK, let url = panel.url else { return nil }
+    guard let bundleID = Bundle(url: url)?.bundleIdentifier else {
+        NSSound.beep()
+        return nil
+    }
+    return bundleID
 }

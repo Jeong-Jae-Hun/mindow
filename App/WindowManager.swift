@@ -32,6 +32,8 @@ final class WindowManager {
     private var cycleWindow: AXUIElement?
     private var history = MoveHistory<AXUIElement>()
     private var maximized = MaximizeMemory<AXUIElement>()
+    /// Windows `autoPlace` is waiting on or moving.
+    private var autoPlacing: Set<AXUIElement> = []
     private let hud = ActionHUD()
     /// The frontmost app when the last menu opened. A menu bar click acts on it, not on
     /// whatever is frontmost when the item fires, in case opening the menu changed that.
@@ -213,6 +215,58 @@ final class WindowManager {
         cycleWindow = window
         cycle.record(target.action, placement: .init(frame: applied, step: placement.step))
     }
+
+    /// Places a window an app just opened by the app's rule (`AutoPlacement`), like a
+    /// first press: recorded for undo, so Undo puts it where the app opened it, but no
+    /// label, since nobody pressed anything. Only standard windows that aren't minimized
+    /// or full screen; sheets, dialogs and panels have other subroles.
+    ///
+    /// New windows often size or place themselves right after they appear, which would
+    /// undo a move made at once, so it waits `autoPlaceDelay` first. An app that still
+    /// moves the window afterwards gets one more try at the same target: worked out
+    /// again from the moved frame, Make Larger would grow it twice. Undo keeps the frame
+    /// from before the first move that happened, whichever pass made it.
+    func autoPlace(_ window: AXUIElement, of bundleID: String) async {
+        // A window that opened as the observer was added is both created and listed;
+        // placing it twice would grow it twice under Make Larger.
+        guard autoPlacing.insert(window).inserted else { return }
+        defer { autoPlacing.remove(window) }
+        AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
+        var first: (rule: AppRule, frame: CGRect, screen: CGRect, applied: CGRect)?
+        var recorded = false
+        for delay in [Self.autoPlaceDelay, Self.autoPlaceDelay * 2] {
+            try? await Task.sleep(for: delay)
+            // Read again after every wait, so a rule removed or an app excluded meanwhile
+            // wins. Each read that fails ends it: a hung app costs one timeout, not four.
+            guard AXIsProcessTrusted(), !ExcludedApps.stored.contains(bundleID),
+                  let rule = AppRules.stored.rule(for: bundleID),
+                  window.string(kAXSubroleAttribute) == kAXStandardWindowSubrole,
+                  window.flag(kAXMinimizedAttribute) == false, window.flag(fullScreenAttribute) == false,
+                  let current = window.frame
+            else { return }
+            let target: (frame: CGRect, screen: CGRect)
+            if let first {
+                // Only for a window the app moved off the first pass's frame, by the same rule.
+                guard rule == first.rule, !WindowLayout.isClose(current, first.applied) else { return }
+                target = (first.frame, first.screen)
+            } else {
+                let screens = NSScreen.axFrames.map(\.visible)
+                guard let placement = rule.placement(for: current, among: screens, gap: Preferences.gapValue) else { return }
+                target = (placement.frame, screens[placement.screen])
+            }
+            guard let applied = window.setFrame(target.frame, within: target.screen) else { return }
+            if !recorded, didMove(applied, from: current) {
+                recorded = true
+                history.record(current, for: window)
+                if rule.action == .moveToFullscreen {
+                    maximized.remember(current, for: window)
+                }
+            }
+            first = (rule, target.frame, target.screen, applied)
+        }
+    }
+
+    private static let autoPlaceDelay: Duration = .seconds(0.15)
 }
 
 // ─── Screens ───
@@ -229,11 +283,20 @@ extension NSScreen {
     }
 }
 
-private extension AXUIElement {
+extension AXUIElement {
     /// Upper bound per AX message, so an app that stopped responding can't hold the
     /// main thread for the system's default six seconds.
     static let messagingTimeout: Float = 0.25
 
+    /// The app element's windows, empty when it doesn't answer.
+    var windows: [AXUIElement] {
+        var all: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(self, kAXWindowsAttribute as CFString, &all) == .success else { return [] }
+        return all as? [AXUIElement] ?? []
+    }
+}
+
+private extension AXUIElement {
     /// The app element's focused window. Also answers for an app that isn't in front.
     var focusedWindow: AXUIElement? {
         var focused: CFTypeRef?
@@ -247,6 +310,12 @@ private extension AXUIElement {
     func flag(_ name: String) -> Bool? {
         var raw: CFTypeRef?
         return AXFlag.value(AXUIElementCopyAttributeValue(self, name as CFString, &raw), raw)
+    }
+
+    func string(_ name: String) -> String? {
+        var raw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(self, name as CFString, &raw) == .success else { return nil }
+        return raw as? String
     }
 
     var frame: CGRect? {

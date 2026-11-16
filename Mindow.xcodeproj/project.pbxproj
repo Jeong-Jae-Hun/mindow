@@ -11,6 +11,7 @@
 		24231B675AF137A2B69017EC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */; };
 		3EA23B80EA69BEBA459E9FE6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37649C61739B946CBB1A0836 /* SettingsView.swift */; };
 		60F42D4B23158C4AC25A2178 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 32C037F0CA73FEF8B83758B6 /* KeyboardShortcuts */; };
+		8B90658F5493687B2A88B7F3 /* AutoPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82A839E663A8F564689CE513 /* AutoPlacement.swift */; };
 		8F819657C961CCE3DF24B741 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */; };
 		AB95BC7FC6E897E0792ABB5E /* MindowCore in Frameworks */ = {isa = PBXBuildFile; productRef = 82932A3515153F2BDA7DC489 /* MindowCore */; };
 		AF0307CA924D1A64CC06CDEA /* DragSnap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E531D3407C954CF0C7D26BE8 /* DragSnap.swift */; };
@@ -29,6 +30,7 @@
 		4FE4E0A0FAFA9FE08C45FCA6 /* ActionHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionHUD.swift; sourceTree = "<group>"; };
 		51098E754D1E8632882E50C4 /* WindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowManager.swift; sourceTree = "<group>"; };
 		6727C2AF95919FB165B7C044 /* Shortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shortcuts.swift; sourceTree = "<group>"; };
+		82A839E663A8F564689CE513 /* AutoPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoPlacement.swift; sourceTree = "<group>"; };
 		932550E16DF3CB1E755B5764 /* SpectacleImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectacleImporter.swift; sourceTree = "<group>"; };
 		9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		995A35CBADD7BFD3F41EB957 /* WindowIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowIntents.swift; sourceTree = "<group>"; };
@@ -74,6 +76,7 @@
 				4FE4E0A0FAFA9FE08C45FCA6 /* ActionHUD.swift */,
 				EF5C10D7C0A9E55B0D8856B3 /* AppDelegate.swift */,
 				9863EC7CCB0C742E33A1DC3B /* Assets.xcassets */,
+				82A839E663A8F564689CE513 /* AutoPlacement.swift */,
 				E531D3407C954CF0C7D26BE8 /* DragSnap.swift */,
 				0596EDE4F43AA110FB2094E5 /* Info.plist */,
 				B40545EDA75EEC02F3900FED /* MindowApp.swift */,
@@ -172,6 +175,7 @@
 			files = (
 				0D61ED7139C6FF862479439E /* ActionHUD.swift in Sources */,
 				8F819657C961CCE3DF24B741 /* AppDelegate.swift in Sources */,
+				8B90658F5493687B2A88B7F3 /* AutoPlacement.swift in Sources */,
 				AF0307CA924D1A64CC06CDEA /* DragSnap.swift in Sources */,
 				F639D4212B2EDBF60E142EF5 /* MindowApp.swift in Sources */,
 				3EA23B80EA69BEBA459E9FE6 /* SettingsView.swift in Sources */,

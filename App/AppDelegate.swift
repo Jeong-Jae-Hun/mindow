@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let updates = UpdateChecker()
     lazy var settings = SettingsWindowController(updates: updates)
     private var dragSnap: DragSnap?
+    private var autoPlacement: AutoPlacement?
 
     /// A URL that launches Mindow arrives before `applicationDidFinishLaunching`, so the
     /// defaults its action reads are set here, and the app it means is read before
@@ -25,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Shortcuts.register { [windows] action in windows.perform(action) }
         dragSnap = DragSnap(windows: windows)
+        autoPlacement = AutoPlacement(windows: windows)
         updates.start()
         if !AXIsProcessTrusted() || SpectacleShortcuts.isSpectacleRunning {
             settings.show()
