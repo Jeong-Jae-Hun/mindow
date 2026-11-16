@@ -64,51 +64,49 @@ enum SettingsTransfer {
         alert.addButton(withTitle: "Replace")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return false }
-        apply(result.settings)
+
+        // Fields the file leaves out stay as they are. Layouts go first: dropping one
+        // drops its shortcut, and the shortcut names of the layouts kept or added must
+        // exist before the file's shortcuts are set. Observers that follow defaults
+        // (drag snap, auto placement) pick the rest up themselves.
+        let settings = result.settings
+        let defaults = UserDefaults.standard
+        if let layouts = settings.layouts {
+            LayoutLibrary.shared.change { $0 = layouts }
+        }
+        if let gap = settings.gap { defaults.set(gap, forKey: Preferences.gap) }
+        if let dragSnap = settings.dragSnap { defaults.set(dragSnap, forKey: Preferences.dragSnap) }
+        if let showHUD = settings.showHUD { defaults.set(showHUD, forKey: Preferences.showHUD) }
+        if let restore = settings.restoreOnDisplayChange { defaults.set(restore, forKey: Preferences.restoreOnDisplayChange) }
+        if let cycle = settings.cycleOnRepeat { defaults.set(cycle, forKey: Preferences.cycleOnRepeat) }
+        if let apps = settings.excludedApps { defaults.set(apps.bundleIDs, forKey: Preferences.excludedApps) }
+        if let rules = settings.appRules { defaults.set(rules.plist, forKey: Preferences.appRules) }
+        // The registered names, so an action's Spectacle default stays known: clearing
+        // one stores "none" instead of removing the key and getting the default back.
+        let names = Dictionary(uniqueKeysWithValues: Shortcuts.titled.map { ($0.name.rawValue, $0.name) })
+        for (raw, binding) in settings.shortcuts {
+            guard let name = names[raw] else { continue }
+            KeyboardShortcuts.setShortcut(binding.map(Shortcuts.shortcut), for: name)
+        }
+        // Applies the new exclusions and layout shortcuts to the app in front right away.
+        Shortcuts.sync()
         return true
     }
 
     /// This Mac's settings, every field set.
     private static var current: SettingsFile {
         let defaults = UserDefaults.standard
-        return SettingsFile(
-            shortcuts: Dictionary(uniqueKeysWithValues: Shortcuts.titled.map { ($0.name.rawValue, Shortcuts.binding(for: $0.name)) }),
-            gap: defaults.double(forKey: Preferences.gap),
-            dragSnap: defaults.bool(forKey: Preferences.dragSnap),
-            showHUD: defaults.bool(forKey: Preferences.showHUD),
-            restoreOnDisplayChange: defaults.bool(forKey: Preferences.restoreOnDisplayChange),
-            cycleOnRepeat: defaults.bool(forKey: Preferences.cycleOnRepeat),
-            excludedApps: .stored,
-            appRules: .stored,
-            layouts: LayoutLibrary.shared.snapshots
-        )
-    }
-
-    /// Fields the file leaves out stay as they are. Layouts go first: dropping one drops
-    /// its shortcut, and the shortcut names of the layouts kept or added must exist
-    /// before the file's shortcuts are set. Observers that follow defaults (drag snap,
-    /// auto placement) pick the rest up themselves.
-    private static func apply(_ file: SettingsFile) {
-        let defaults = UserDefaults.standard
-        if let layouts = file.layouts {
-            LayoutLibrary.shared.change { $0 = layouts }
-        }
-        if let gap = file.gap { defaults.set(gap, forKey: Preferences.gap) }
-        if let dragSnap = file.dragSnap { defaults.set(dragSnap, forKey: Preferences.dragSnap) }
-        if let showHUD = file.showHUD { defaults.set(showHUD, forKey: Preferences.showHUD) }
-        if let restore = file.restoreOnDisplayChange { defaults.set(restore, forKey: Preferences.restoreOnDisplayChange) }
-        if let cycle = file.cycleOnRepeat { defaults.set(cycle, forKey: Preferences.cycleOnRepeat) }
-        if let apps = file.excludedApps { defaults.set(apps.bundleIDs, forKey: Preferences.excludedApps) }
-        if let rules = file.appRules { defaults.set(rules.plist, forKey: Preferences.appRules) }
-        // The registered names, so an action's Spectacle default stays known: clearing
-        // one stores "none" instead of removing the key and getting the default back.
-        let names = Dictionary(uniqueKeysWithValues: Shortcuts.titled.map { ($0.name.rawValue, $0.name) })
-        for (raw, binding) in file.shortcuts {
-            guard let name = names[raw] else { continue }
-            KeyboardShortcuts.setShortcut(binding.map(Shortcuts.shortcut), for: name)
-        }
-        // Applies the new exclusions and layout shortcuts to the app in front right away.
-        Shortcuts.sync()
+        var file = SettingsFile()
+        file.shortcuts = Dictionary(uniqueKeysWithValues: Shortcuts.titled.map { ($0.name.rawValue, Shortcuts.binding(for: $0.name)) })
+        file.gap = defaults.double(forKey: Preferences.gap)
+        file.dragSnap = defaults.bool(forKey: Preferences.dragSnap)
+        file.showHUD = defaults.bool(forKey: Preferences.showHUD)
+        file.restoreOnDisplayChange = defaults.bool(forKey: Preferences.restoreOnDisplayChange)
+        file.cycleOnRepeat = defaults.bool(forKey: Preferences.cycleOnRepeat)
+        file.excludedApps = .stored
+        file.appRules = .stored
+        file.layouts = LayoutLibrary.shared.snapshots
+        return file
     }
 
     private static func describe(_ change: SettingsFile.Change, layouts: LayoutSnapshots?) -> String {
@@ -121,22 +119,19 @@ enum SettingsTransfer {
                 ?? name
             return "\(title): \(from.map { "\(Shortcuts.shortcut($0))" } ?? "none") → \(to.map { "\(Shortcuts.shortcut($0))" } ?? "none")"
         case .value(let key, let from, let to):
-            return "\(title(of: key)): \(from) → \(to)"
-        }
-    }
-
-    /// The settings window's names for the file's keys.
-    private static func title(of key: String) -> String {
-        switch key {
-        case "gap": "Window gap"
-        case "dragSnap": "Snap by dragging"
-        case "showHUD": "Label after each action"
-        case "restoreOnDisplayChange": "Restore when displays change"
-        case "cycleOnRepeat": "Cycle sizes"
-        case "excludedApps": "Excluded apps"
-        case "appRules": "Auto placement"
-        case "layouts": "Layouts"
-        default: key
+            // The settings window's names for the file's keys.
+            let title = switch key {
+            case "gap": "Window gap"
+            case "dragSnap": "Snap by dragging"
+            case "showHUD": "Label after each action"
+            case "restoreOnDisplayChange": "Restore when displays change"
+            case "cycleOnRepeat": "Cycle sizes"
+            case "excludedApps": "Excluded apps"
+            case "appRules": "Auto placement"
+            case "layouts": "Layouts (a layout left out loses its shortcut)"
+            default: key
+            }
+            return "\(title): \(from) → \(to)"
         }
     }
 

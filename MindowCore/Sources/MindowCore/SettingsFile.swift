@@ -14,7 +14,7 @@ public struct SettingsFile: Equatable, Sendable {
     public static let layoutPrefix = "Layout_"
 
     /// Shortcut name to binding; nil (JSON null) is no shortcut.
-    public var shortcuts: [String: KeyBinding?]
+    public var shortcuts: [String: KeyBinding?] = [:]
     public var gap: Double?
     public var dragSnap: Bool?
     public var showHUD: Bool?
@@ -24,24 +24,13 @@ public struct SettingsFile: Equatable, Sendable {
     public var appRules: AppRules?
     public var layouts: LayoutSnapshots?
 
-    public init(
-        shortcuts: [String: KeyBinding?] = [:], gap: Double? = nil, dragSnap: Bool? = nil, showHUD: Bool? = nil,
-        restoreOnDisplayChange: Bool? = nil, cycleOnRepeat: Bool? = nil, excludedApps: ExcludedApps? = nil,
-        appRules: AppRules? = nil, layouts: LayoutSnapshots? = nil
-    ) {
-        self.shortcuts = shortcuts
-        self.gap = gap
-        self.dragSnap = dragSnap
-        self.showHUD = showHUD
-        self.restoreOnDisplayChange = restoreOnDisplayChange
-        self.cycleOnRepeat = cycleOnRepeat
-        self.excludedApps = excludedApps
-        self.appRules = appRules
-        self.layouts = layouts
-    }
+    /// Sets nothing; fields are filled one by one.
+    public init() {}
 
     /// The window gap slider's range.
     public static let gapRange: ClosedRange<Double> = 0...32
+    /// Carbon key codes and modifiers are 16-bit; KeyboardShortcuts traps on more.
+    static let carbonRange = 0...Int(UInt16.max)
 
     public enum ReadError: Error, Equatable {
         case notJSON
@@ -51,8 +40,9 @@ public struct SettingsFile: Equatable, Sendable {
         case newerVersion(Int)
     }
 
-    /// What a file sets, and a line for each entry left out (unknown key, shortcut name
-    /// or action, wrong type), shown before anything is written, as a Spectacle import does.
+    /// What a file sets, and a line for each entry left out (unknown key at any level,
+    /// shortcut name or action, wrong type), shown before anything is written, as a
+    /// Spectacle import does.
     public struct ReadResult: Equatable, Sendable {
         public var settings: SettingsFile
         public var skipped: [String]
@@ -80,7 +70,9 @@ public struct SettingsFile: Equatable, Sendable {
         }
         for (key, field) in Self.flags {
             guard let raw = root[key] else { continue }
-            if let flag = Self.flag(raw) {
+            // JSON true and false only: JSONSerialization reads them as numbers, so 1 is
+            // told apart by type.
+            if CFGetTypeID(raw as CFTypeRef) == CFBooleanGetTypeID(), let flag = raw as? Bool {
                 settings[keyPath: field] = flag
             } else {
                 skipped.append("\(key): not true or false")
@@ -99,7 +91,13 @@ public struct SettingsFile: Equatable, Sendable {
             if let entries = raw as? [Any] {
                 settings.appRules = AppRules(plist: entries)
                 // One at a time, so each line names the rule; a repeated app is dropped quietly, as stored rules are.
-                skipped += entries.filter { AppRules(plist: [$0]).rules.isEmpty }.map { "appRules: \(Self.describeEntry($0))" }
+                for entry in entries {
+                    if AppRules(plist: [entry]).rules.isEmpty {
+                        skipped.append("appRules: \(Self.describeEntry(entry))")
+                    } else {
+                        skipped += Self.unknownKeys(in: entry, allowed: ["bundleID", "action", "display"], at: "appRules.\(Self.describeEntry(entry))")
+                    }
+                }
             } else {
                 skipped.append("appRules: not a list")
             }
@@ -113,8 +111,12 @@ public struct SettingsFile: Equatable, Sendable {
                         skipped.append("layouts: \(Self.describeEntry(entry))")
                         continue
                     }
-                    let written = ((entry as? [String: Any])?["windows"] as? [Any])?.count ?? 0
-                    if kept.windows.count < written { skipped.append("layouts: \(written - kept.windows.count) windows of \(kept.name)") }
+                    skipped += Self.unknownKeys(in: entry, allowed: ["id", "name", "windows"], at: "layouts.\(kept.name)")
+                    let written = (entry as? [String: Any])?["windows"] as? [Any] ?? []
+                    if kept.windows.count < written.count { skipped.append("layouts: \(written.count - kept.windows.count) windows of \(kept.name)") }
+                    for (index, window) in written.enumerated() {
+                        skipped += Self.unknownKeys(in: window, allowed: Self.windowKeys, at: "layouts.\(kept.name).windows[\(index)]")
+                    }
                 }
             } else {
                 skipped.append("layouts: not a list")
@@ -122,18 +124,19 @@ public struct SettingsFile: Equatable, Sendable {
         }
         if let raw = root["shortcuts"] {
             if let entries = raw as? [String: Any] {
-                let layoutIDs = Set((settings.layouts ?? existing).layouts.map(\.id))
+                let layoutIDs = Set((settings.layouts ?? existing).layouts.map { layoutPrefix + $0.id })
                 for (name, value) in entries.sorted(by: { $0.key < $1.key }) {
-                    guard isShortcutName(name, layoutIDs: layoutIDs) else {
+                    guard WindowAction(rawValue: name) != nil || name == togglePause || layoutIDs.contains(name) else {
                         skipped.append("shortcuts.\(name): unknown shortcut")
                         continue
                     }
                     if value is NSNull {
                         settings.shortcuts[name] = .some(nil)
                     } else if let entry = value as? [String: Any],
-                              let keyCode = PlistNumber.index(entry["carbonKeyCode"]),
-                              let modifiers = PlistNumber.index(entry["carbonModifiers"]) {
+                              let keyCode = PlistNumber.index(entry["carbonKeyCode"]), carbonRange.contains(keyCode),
+                              let modifiers = PlistNumber.index(entry["carbonModifiers"]), carbonRange.contains(modifiers) {
                         settings.shortcuts[name] = KeyBinding(carbonKeyCode: keyCode, carbonModifiers: modifiers)
+                        skipped += unknownKeys(in: entry, allowed: ["carbonKeyCode", "carbonModifiers"], at: "shortcuts.\(name)")
                     } else {
                         skipped.append("shortcuts.\(name): not a shortcut or null")
                     }
@@ -185,19 +188,19 @@ public struct SettingsFile: Equatable, Sendable {
             changes.append(.value("appRules", from: Self.describe(current.appRules), to: Self.describe(appRules)))
         }
         if let layouts, layouts != current.layouts {
-            changes.append(.value("layouts", from: Self.describe(current.layouts?.layouts.map(\.name) ?? []), to: Self.describe(layouts.layouts.map(\.name))))
+            // By id, so a layout keeping its name but not its windows doesn't read as unchanged.
+            let before = current.layouts ?? LayoutSnapshots()
+            let after = layouts.layouts.map { layout in
+                guard let old = before.layout(id: layout.id) else { return "\(layout.name) (new)" }
+                return old == layout ? layout.name : "\(layout.name) (changed)"
+            }
+            changes.append(.value("layouts", from: Self.describe(before.layouts.map(\.name)), to: Self.describe(after)))
         }
         for (name, binding) in shortcuts.sorted(by: { $0.key < $1.key }) {
             let now = current.shortcuts[name] ?? nil
             if binding != now { changes.append(.shortcut(name, from: now, to: binding)) }
         }
         return changes
-    }
-
-    /// Action raw values, TogglePause, and `Layout_<id>` for an id in `layoutIDs`.
-    public static func isShortcutName(_ name: String, layoutIDs: Set<String>) -> Bool {
-        if WindowAction(rawValue: name) != nil || name == togglePause { return true }
-        return name.hasPrefix(layoutPrefix) && layoutIDs.contains(String(name.dropFirst(layoutPrefix.count)))
     }
 
     // ─── Private ───
@@ -210,12 +213,11 @@ public struct SettingsFile: Equatable, Sendable {
         ]
     }
     private static let keys: Set<String> = Set(["format", "version", "shortcuts", "gap", "excludedApps", "appRules", "layouts"] + flags.map(\.key))
+    private static let windowKeys: Set<String> = ["bundleID", "title", "index", "display", "frame", "screen"]
 
-    /// JSON true and false only: a Bool and a number read alike from JSONSerialization,
-    /// so 1 is told apart by type.
-    private static func flag(_ raw: Any) -> Bool? {
-        guard CFGetTypeID(raw as CFTypeRef) == CFBooleanGetTypeID() else { return nil }
-        return raw as? Bool
+    /// Keys of an object entry that its kind doesn't have; they are left out on import.
+    private static func unknownKeys(in entry: Any, allowed: Set<String>, at path: String) -> [String] {
+        ((entry as? [String: Any])?.keys).map { keys in keys.filter { !allowed.contains($0) }.sorted().map { "\(path).\($0): unknown setting" } } ?? []
     }
 
     private static func describe(_ value: Bool) -> String { value ? "on" : "off" }

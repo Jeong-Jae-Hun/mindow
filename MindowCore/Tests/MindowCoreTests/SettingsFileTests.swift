@@ -13,17 +13,21 @@ struct SettingsFileTests {
     }
 
     var full: SettingsFile {
-        SettingsFile(
-            shortcuts: ["MoveToLeftHalf": left, "MoveToNextFourth": KeyBinding?.none, "TogglePause": KeyBinding(carbonKeyCode: 35, carbonModifiers: 6400),
-                        "Layout_\(id)": KeyBinding(carbonKeyCode: 18, carbonModifiers: 6400)],
-            gap: 8, dragSnap: true, showHUD: false, restoreOnDisplayChange: true, cycleOnRepeat: false,
-            excludedApps: ExcludedApps(["com.riotgames.LeagueofLegends.GameClient"]),
-            appRules: AppRules([AppRule(bundleID: "com.tinyspeck.slackmacgap", action: .moveToBottomHalf, display: 1)]),
-            layouts: LayoutSnapshots([LayoutSnapshot(id: id, name: "코딩", windows: [
-                LayoutSnapshot.Window(bundleID: "com.stablyso.orca", title: "mindow", index: 0, display: 0,
-                                      frame: CGRect(x: 0, y: 25, width: 1720, height: 1415), screen: CGSize(width: 1720, height: 1415)),
-            ])])
-        )
+        var file = SettingsFile()
+        file.shortcuts = ["MoveToLeftHalf": left, "MoveToNextFourth": KeyBinding?.none, "TogglePause": KeyBinding(carbonKeyCode: 35, carbonModifiers: 6400),
+                          "Layout_\(id)": KeyBinding(carbonKeyCode: 18, carbonModifiers: 6400)]
+        file.gap = 8
+        file.dragSnap = true
+        file.showHUD = false
+        file.restoreOnDisplayChange = true
+        file.cycleOnRepeat = false
+        file.excludedApps = ExcludedApps(["com.riotgames.LeagueofLegends.GameClient"])
+        file.appRules = AppRules([AppRule(bundleID: "com.tinyspeck.slackmacgap", action: .moveToBottomHalf, display: 1)])
+        file.layouts = LayoutSnapshots([LayoutSnapshot(id: id, name: "코딩", windows: [
+            LayoutSnapshot.Window(bundleID: "com.stablyso.orca", title: "mindow", index: 0, display: 0,
+                                  frame: CGRect(x: 0, y: 25, width: 1720, height: 1415), screen: CGSize(width: 1720, height: 1415)),
+        ])])
+        return file
     }
 
     @Test("내보낸 파일을 다시 읽으면 같은 설정이고 건너뛴 항목이 없다")
@@ -140,7 +144,8 @@ struct SettingsFileTests {
     @Test("파일에 없는 항목은 바꾸지 않고, 다른 값만 바뀔 목록에 오른다")
     func 바뀔목록() throws {
         let current = full
-        var file = SettingsFile(shortcuts: ["MoveToLeftHalf": left, "MoveToNextFourth": KeyBinding(carbonKeyCode: 124, carbonModifiers: 6656)])
+        var file = SettingsFile()
+        file.shortcuts = ["MoveToLeftHalf": left, "MoveToNextFourth": KeyBinding(carbonKeyCode: 124, carbonModifiers: 6656)]
         file.gap = 8
         file.showHUD = true
         file.excludedApps = ExcludedApps()
@@ -151,5 +156,46 @@ struct SettingsFileTests {
         ])
         #expect(full.changes(from: current).isEmpty)
         #expect(SettingsFile().changes(from: current).isEmpty)
+    }
+
+    @Test("레이아웃은 id로 비교해 이름이 같아도 창이 다르면 바뀜, 처음 보는 id는 새것으로 보여 준다")
+    func 레이아웃변경() throws {
+        var file = SettingsFile()
+        var layouts = try #require(full.layouts)
+        layouts.replaceWindows(of: id, with: [])
+        layouts.add(LayoutSnapshot(name: "회의", windows: []))
+        file.layouts = layouts
+        #expect(file.changes(from: full) == [.value("layouts", from: "코딩", to: "코딩 (changed), 회의 (new)")])
+    }
+
+    @Test("16비트를 넘는 키 코드·수식키는 단축키로 받지 않는다")
+    func 키범위() throws {
+        let result = try read("""
+        {"format": "mindow-settings", "version": 1, "shortcuts": {
+          "MoveToLeftHalf": {"carbonKeyCode": 65536, "carbonModifiers": 2304},
+          "MoveToRightHalf": {"carbonKeyCode": 124, "carbonModifiers": 65536},
+          "MoveToTopHalf": {"carbonKeyCode": 65535, "carbonModifiers": 65535}}}
+        """)
+        #expect(result.skipped == ["shortcuts.MoveToLeftHalf: not a shortcut or null", "shortcuts.MoveToRightHalf: not a shortcut or null"])
+        #expect(result.settings.shortcuts == ["MoveToTopHalf": KeyBinding(carbonKeyCode: 65535, carbonModifiers: 65535)])
+    }
+
+    @Test("단축키·앱 규칙·레이아웃·창 안의 모르는 키도 건너뛴 목록에 남기고 항목은 읽는다")
+    func 안쪽모르는키() throws {
+        let result = try read("""
+        {"format": "mindow-settings", "version": 1,
+         "shortcuts": {"MoveToLeftHalf": {"carbonKeyCode": 123, "carbonModifiers": 2304, "label": "x"}},
+         "appRules": [{"bundleID": "b", "action": "MoveToLeftHalf", "space": 2}],
+         "layouts": [{"id": "\(id)", "name": "코딩", "color": "red",
+                      "windows": [{"bundleID": "o", "title": "", "index": 0, "display": 0, "frame": [0, 0, 10, 10], "z": 1}]}]}
+        """)
+        #expect(result.skipped == [
+            "appRules.b.space: unknown setting",
+            "layouts.코딩.color: unknown setting", "layouts.코딩.windows[0].z: unknown setting",
+            "shortcuts.MoveToLeftHalf.label: unknown setting",
+        ])
+        #expect(result.settings.shortcuts == ["MoveToLeftHalf": left])
+        #expect(result.settings.appRules?.rules.count == 1)
+        #expect(result.settings.layouts?.layouts.first?.windows.count == 1)
     }
 }
