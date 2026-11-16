@@ -45,14 +45,31 @@ final class LayoutLibrary {
     }
 
     /// Reads the windows first, so the layout is what was on screen when asked, then asks
-    /// for a name. Nothing to save (no Accessibility access, no windows) beeps.
+    /// for a name. Nothing to save (no Accessibility access, no windows) beeps. Mindow
+    /// has no window in front when this comes from the menu bar, so it comes forward
+    /// first or the alert would open behind the other apps.
     func saveCurrent() async {
         let windows = await WindowManager.shared.captureLayout()
         guard !windows.isEmpty else {
             NSSound.beep()
             return
         }
-        guard let name = askName(count: windows.count) else { return }
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = "Save Current Layout"
+        alert.informativeText = "\(windows.count) windows. Restore them from the Layouts menu, a shortcut, mindow://layout/<name> or the Shortcuts app."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.placeholderString = "Name"
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            NSSound.beep()
+            return
+        }
         change { $0.add(LayoutSnapshot(name: name, windows: windows)) }
     }
 
@@ -76,28 +93,7 @@ final class LayoutLibrary {
 
     // ─── Alerts ───
 
-    /// Mindow has no window in front when this comes from the menu bar, so it comes
-    /// forward first or the alert would open behind the other apps.
-    private func askName(count: Int) -> String? {
-        NSApp.activate()
-        let alert = NSAlert()
-        alert.messageText = "Save Current Layout"
-        alert.informativeText = "\(count) windows. Restore them from the Layouts menu, a shortcut, mindow://layout/<name> or the Shortcuts app."
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        field.placeholderString = "Name"
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else {
-            NSSound.beep()
-            return nil
-        }
-        return name
-    }
-
+    /// Brings Mindow forward first, like `saveCurrent`.
     private func confirm(_ message: String, button: String) -> Bool {
         NSApp.activate()
         let alert = NSAlert()

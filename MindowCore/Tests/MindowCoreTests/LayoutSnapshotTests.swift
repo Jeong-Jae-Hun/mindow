@@ -33,6 +33,15 @@ struct LayoutSnapshotTests {
         #expect(placement.frame == CGRect(x: 1612, y: 100, width: 800, height: 600))
     }
 
+    @Test("크기가 같은 화면이면 화면 밖으로 걸치거나 두 화면에 걸친 창도 저장한 자리 그대로 돌아간다")
+    func 걸친창() throws {
+        let spanning = CGRect(x: 1312, y: 40, width: 600, height: 400)
+        let window = try #require(LayoutSnapshot.Window(bundleID: orca, title: "", index: 0, window: spanning, among: [laptop, monitor]))
+        #expect(window.display == 1)
+        #expect(window.frame.minX == -200)
+        #expect(window.placement(among: [laptop, monitor])?.frame == spanning)
+    }
+
     @Test("같은 순번 화면의 크기가 다르면 비율로 맞추고, 크기 기록이 없으면 그대로 옮긴다")
     func 비율() throws {
         let window = LayoutSnapshot.Window(
@@ -117,7 +126,9 @@ struct LayoutSnapshotTests {
             good.merging(["frame": [0, 0, 100]]) { $1 },
             good.merging(["frame": [0, 0, 0, 100]]) { $1 },
             good.merging(["frame": [0, 0, "100", 100]]) { $1 },
+            good.merging(["frame": [0, "bad", 0, 100, 100]]) { $1 },
             good.merging(["screen": [1920]]) { $1 },
+            good.merging(["screen": [1920, "bad", 1055]]) { $1 },
             "window",
             good,
         ]

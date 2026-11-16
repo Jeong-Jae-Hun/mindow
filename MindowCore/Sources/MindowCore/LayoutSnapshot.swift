@@ -41,14 +41,15 @@ public struct LayoutSnapshot: Equatable, Sendable {
             )
         }
 
-        /// Where the window goes now: the same place on the same display, scaled like
-        /// Next Display when that display's visible frame has another size, and kept on
-        /// it. Nil when that display isn't connected; the window then stays put.
+        /// Where the window goes now: exactly where it was on the same display, even
+        /// partly off it or across two, or scaled and kept on it like Next Display when
+        /// that display's visible frame has another size. Nil when that display isn't
+        /// connected; the window then stays put.
         public func placement(among screens: [CGRect]) -> (frame: CGRect, screen: Int)? {
             guard screens.indices.contains(display) else { return nil }
             let to = screens[display]
-            let from = CGRect(origin: .zero, size: screen ?? to.size)
-            return (WindowLayout.moveProportionally(frame, between: (from, to)), display)
+            guard let screen, screen != to.size else { return (frame.offsetBy(dx: to.minX, dy: to.minY), display) }
+            return (WindowLayout.moveProportionally(frame, between: (CGRect(origin: .zero, size: screen), to)), display)
         }
     }
 
@@ -188,12 +189,14 @@ public struct LayoutSnapshots: Equatable, Sendable {
               let title = dictionary["title"] as? String,
               let index = PlistNumber.index(dictionary["index"]),
               let display = PlistNumber.index(dictionary["display"]),
-              let frame = (dictionary["frame"] as? [Any])?.compactMap(PlistNumber.real), frame.count == 4,
-              frame[2] > 0, frame[3] > 0
+              let rawFrame = dictionary["frame"] as? [Any], rawFrame.count == 4,
+              case let frame = rawFrame.compactMap(PlistNumber.real), frame.count == 4, frame[2] > 0, frame[3] > 0
         else { return nil }
         var screen: CGSize?
         if let raw = dictionary["screen"] {
-            guard let size = (raw as? [Any])?.compactMap(PlistNumber.real), size.count == 2, size[0] > 0, size[1] > 0 else { return nil }
+            guard let rawSize = raw as? [Any], rawSize.count == 2,
+                  case let size = rawSize.compactMap(PlistNumber.real), size.count == 2, size[0] > 0, size[1] > 0
+            else { return nil }
             screen = CGSize(width: size[0], height: size[1])
         }
         return LayoutSnapshot.Window(
