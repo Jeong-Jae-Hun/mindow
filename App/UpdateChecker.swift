@@ -9,7 +9,7 @@ import Observation
 final class UpdateChecker {
     private(set) var available: LatestRelease?
 
-    private static let endpoint = URL(string: "https://api.github.com/repos/Jeong-Jae-Hun/mindow/releases/latest")!
+    private static let endpoint = URL(string: "https://api.github.com/repos/Jeong-Jae-Hun/mindow/releases/latest")
     /// Ephemeral with no cookie store or cache: the request carries nothing that
     /// could tell one Mac from another.
     private static let session: URLSession = {
@@ -43,13 +43,13 @@ final class UpdateChecker {
             return
         }
         let lastCheck = defaults.object(forKey: Preferences.lastUpdateCheck) as? Date
-        guard UpdateSchedule.isDue(lastCheck: lastCheck, now: .now),
+        guard UpdateSchedule.isDue(lastCheck: lastCheck, now: .now), let endpoint = Self.endpoint,
               let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         else { return }
         // Recorded before the request, so a failed one also waits a day, and a second
         // call while this one is out (toggle plus hourly wake-up) finds nothing due.
         defaults.set(Date.now, forKey: Preferences.lastUpdateCheck)
-        var request = URLRequest(url: Self.endpoint)
+        var request = URLRequest(url: endpoint)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await Self.session.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
