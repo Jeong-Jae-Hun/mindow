@@ -44,42 +44,31 @@ final class WindowManager {
 
     /// Shortcuts act on the frontmost app; the menu passes `menuTarget`.
     func perform(_ action: WindowAction, in target: NSRunningApplication? = NSWorkspace.shared.frontmostApplication) {
+        var focused: CFTypeRef?
         guard AXIsProcessTrusted(),
               let app = target,
-              let window = AXUIElementCreateApplication(app.processIdentifier).element(kAXFocusedWindowAttribute)
+              AXUIElementCopyAttributeValue(
+                  AXUIElementCreateApplication(app.processIdentifier),
+                  kAXFocusedWindowAttribute as CFString,
+                  &focused
+              ) == .success,
+              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
         else {
             NSSound.beep()
             return
         }
+        let window = unsafeDowncast(focused, to: AXUIElement.self)
         let screens = NSScreen.axFrames.map(\.visible)
         guard let current = window.frame, let index = WindowLayout.screenIndex(for: current, among: screens) else { return }
+
+        let screen = screens[index]
 
         // A cycle continues only on the same window with nothing else in between.
         if cycleWindow != window || !(action.cyclesOnRepeat || action.cellGrid != nil) {
             cycle = RepeatCycle()
         }
         cycleWindow = window
-        move(window, action, from: current, screen: index, among: screens)
-    }
 
-    /// Places a window dropped by drag snap, found by its owner and its frame at the
-    /// drop. It goes on the screen under the cursor (`screen` indexes `NSScreen.axFrames`),
-    /// not the one holding most of the window, and starts a fresh cycle as if its shortcut
-    /// was pressed once, so the shortcut right after continues from there.
-    func snap(_ action: WindowAction, pid: pid_t, frame: CGRect, screen: Int) {
-        let screens = NSScreen.axFrames.map(\.visible)
-        guard AXIsProcessTrusted(), screens.indices.contains(screen),
-              let window = AXUIElement.window(of: pid, at: frame),
-              let current = window.frame
-        else { return }
-        cycle = RepeatCycle()
-        cycleWindow = window
-        move(window, action, from: current, screen: screen, among: screens)
-    }
-
-    /// `screens` are visible frames; `screen` indexes the one the action is relative to.
-    private func move(_ window: AXUIElement, _ action: WindowAction, from current: CGRect, screen index: Int, among screens: [CGRect]) {
-        let screen = screens[index]
         switch action {
         case .undoLastMove, .redoLastMove:
             let undoing = action == .undoLastMove
@@ -104,7 +93,7 @@ final class WindowManager {
             // The toggle covers size cycling; thirds and fourths always walk their cells.
             let remembered = action.cellGrid != nil || UserDefaults.standard.bool(forKey: Preferences.cycleOnRepeat)
             let previous = remembered ? cycle.previousStep(for: action, current: current) : nil
-            let gap = CGFloat(UserDefaults.standard.double(forKey: Preferences.gap))
+            let gap = Preferences.gapValue
             let context = WindowLayout.Context(window: current, screen: screen, previousStep: previous, gap: gap)
             guard let target = WindowLayout.placement(for: action, in: context) else { return }
             // Fullscreen again on a window Mindow maximized goes back to the frame it had.
@@ -124,6 +113,35 @@ final class WindowManager {
             }
             cycle.record(action, placement: .init(frame: applied, step: target.step))
         }
+    }
+
+    /// Places a window dropped by drag snap, found by its owner and its frame at the
+    /// drop. It goes on the screen under the cursor (`target.screen` indexes
+    /// `NSScreen.axFrames`), not the one holding most of the window. Like a first press
+    /// of the shortcut: step 0, recorded for undo, and the next press continues the
+    /// cycle. Fullscreen never restores the remembered frame here, because a window
+    /// dragged along the top edge can drop where it already filled the screen.
+    func snap(_ target: SnapZone.Target, window dropped: (pid: pid_t, frame: CGRect)) {
+        let screens = NSScreen.axFrames.map(\.visible)
+        guard AXIsProcessTrusted(), screens.indices.contains(target.screen),
+              let window = AXUIElement.window(of: dropped.pid, at: dropped.frame),
+              let current = window.frame
+        else { return }
+        let screen = screens[target.screen]
+        let gap = Preferences.gapValue
+        let context = WindowLayout.Context(window: current, screen: screen, previousStep: nil, gap: gap)
+        guard let placement = WindowLayout.placement(for: target.action, in: context),
+              let applied = window.setFrame(placement.frame, within: screen)
+        else { return }
+        if didMove(applied, from: current) {
+            history.record(current, for: window)
+            if target.action == .moveToFullscreen {
+                maximized.remember(current, for: window)
+            }
+        }
+        cycle = RepeatCycle()
+        cycleWindow = window
+        cycle.record(target.action, placement: .init(frame: applied, step: placement.step))
     }
 }
 
@@ -146,28 +164,23 @@ private extension AXUIElement {
     /// main thread for the system's default six seconds.
     static let messagingTimeout: Float = 0.25
 
-    /// The window of `pid` whose frame is `frame`: the focused one when it matches
-    /// (a dragged window usually is), otherwise the first match among all its windows.
+    /// The window of `pid` whose frame is `frame`. Each message waits at most
+    /// `messagingTimeout`, and the search stops at the first one that gets no answer
+    /// (an unreadable frame counts), so an app that hangs mid-search costs two
+    /// timeouts at most, not one per window.
     static func window(of pid: pid_t, at frame: CGRect) -> AXUIElement? {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, messagingTimeout)
-        let focused = app.element(kAXFocusedWindowAttribute).map { [$0] } ?? []
         var all: CFTypeRef?
-        let windows = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &all) == .success
-            ? (all as? [AXUIElement]) ?? []
-            : []
-        return (focused + windows).first { window in
-            AXUIElementSetMessagingTimeout(window, messagingTimeout)
-            return window.frame.map { WindowLayout.isClose($0, frame) } ?? false
-        }
-    }
-
-    func element(_ attribute: String) -> AXUIElement? {
-        var raw: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(self, attribute as CFString, &raw) == .success,
-              let raw, CFGetTypeID(raw) == AXUIElementGetTypeID()
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &all) == .success,
+              let windows = all as? [AXUIElement]
         else { return nil }
-        return unsafeDowncast(raw, to: AXUIElement.self)
+        for window in windows {
+            AXUIElementSetMessagingTimeout(window, messagingTimeout)
+            guard let current = window.frame else { return nil }
+            if WindowLayout.isClose(current, frame) { return window }
+        }
+        return nil
     }
 
     var frame: CGRect? {

@@ -107,28 +107,27 @@ final class DragSnap {
                 let now = ProcessInfo.processInfo.systemUptime
                 guard now - drag.lastRead >= Self.readInterval else { return }
                 drag.lastRead = now
-                guard let frame = WindowListEntry.frame(of: drag.window.id), frame.size == drag.window.frame.size else {
-                    // Closed, or resized: a size change is never a move.
+                switch Self.hasMoved(drag.window) {
+                case nil:
                     gesture = .ignored
                     return
-                }
-                guard frame.origin != drag.window.frame.origin else {
+                case false?:
                     gesture = .tracking(drag)
                     return
+                case true?:
+                    // Moving from here on; the window list is not read again in this drag.
+                    drag.screens = NSScreen.axFrames
                 }
-                // Moving from here on; the window list is not read again in this drag.
-                drag.screens = NSScreen.axFrames
             }
             guard let screens = drag.screens else { return }
             let target = SnapZone.target(at: cursor, screens: screens.map(\.frame))
             if target != drag.target {
                 drag.target = target
-                // Always the first step of the action: a drop is a fresh start, not a repeat.
-                let gap = CGFloat(UserDefaults.standard.double(forKey: Preferences.gap))
+                // Always the first step of the action, like the drop: a fresh start, not a repeat.
                 let frame = target.flatMap { target in
                     WindowLayout.placement(
                         for: target.action,
-                        in: .init(window: drag.window.frame, screen: screens[target.screen].visible, previousStep: nil, gap: gap)
+                        in: .init(window: drag.window.frame, screen: screens[target.screen].visible, previousStep: nil, gap: Preferences.gapValue)
                     )?.frame
                 }
                 if let frame { preview.show(frame) } else { preview.hide() }
@@ -140,10 +139,21 @@ final class DragSnap {
     private func mouseUp() {
         defer { gesture = .idle }
         preview.hide()
-        guard case .tracking(let drag) = gesture, drag.screens != nil, let target = drag.target,
+        guard case .tracking(let drag) = gesture else { return }
+        // A short flick can end before a throttled read saw the window move.
+        let screens = drag.screens ?? (Self.hasMoved(drag.window) == true ? NSScreen.axFrames : nil)
+        guard let screens,
+              let target = SnapZone.target(at: cursor, screens: screens.map(\.frame)),
               let frame = WindowListEntry.frame(of: drag.window.id)
         else { return }
-        windows.snap(target.action, pid: drag.window.pid, frame: frame, screen: target.screen)
+        windows.snap(target, window: (drag.window.pid, frame))
+    }
+
+    /// Nil when the drag is not a window move (the window closed or changed size, and a
+    /// resize can shift the origin too), false while it has not moved yet.
+    private static func hasMoved(_ window: WindowListEntry) -> Bool? {
+        guard let frame = WindowListEntry.frame(of: window.id), frame.size == window.frame.size else { return nil }
+        return frame.origin != window.frame.origin
     }
 
     /// The cursor in AX coordinates.
