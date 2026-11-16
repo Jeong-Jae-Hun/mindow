@@ -29,6 +29,7 @@ struct DisplayMemoryTests {
         memory.displaysChanged()
         let unplugged = memory.settle(on: alone)
         #expect(unplugged.isEmpty)
+        memory.resume()
         memory.record(["editor": left], of: 1, in: alone)
         memory.displaysChanged()
         let replugged = memory.settle(on: docked)
@@ -36,7 +37,7 @@ struct DisplayMemoryTests {
         #expect(memory.current == docked)
     }
 
-    @Test("구성이 바뀐 뒤 자리 잡기 전에는 기록하지 않고, 자리 잡으면 다시 기록한다")
+    @Test("구성이 바뀐 뒤 복원을 마칠 때까지 기록하지 않고, 마치면 다시 기록한다")
     func 기록멈춤() {
         var memory = DisplayMemory<Int, String>(current: docked)
         memory.record(["editor": right], of: 1, in: docked)
@@ -48,6 +49,9 @@ struct DisplayMemoryTests {
         #expect(!newDisplays)
         let restored = memory.settle(on: docked)
         #expect(restored == [1: ["editor": right]])
+        let restoring = memory.record(["editor": left], of: 1, in: docked)
+        #expect(!restoring)
+        memory.resume()
         #expect(!memory.isSettling)
         let resumed = memory.record(["editor": left], of: 1, in: docked)
         #expect(resumed)
@@ -85,6 +89,7 @@ struct DisplayMemoryTests {
         memory.record(["chat": right], of: 2, in: docked)
         memory.displaysChanged()
         _ = memory.settle(on: alone)
+        memory.resume()
         memory.record(["editor": left], of: 1, in: alone)
         memory.forget(1)
         memory.displaysChanged()

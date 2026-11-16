@@ -96,7 +96,7 @@ final class AutoPlacement {
             CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
             observers[pid] = observer
             if launched, let bundleID = app.bundleIdentifier {
-                for window in element.windows {
+                for window in element.windows ?? [] {
                     Task { await windows.autoPlace(window, of: bundleID) }
                 }
             }

@@ -54,44 +54,48 @@ final class DisplayRestore {
     }
 
     /// Recording stops at once; restoring waits until no change came for `settleDelay`.
+    /// A change during a restore cancels it; the restore for the newer displays follows.
     private func displaysChanged() {
         memory.displaysChanged()
         settling?.cancel()
         settling = Task { [weak self] in
             try? await Task.sleep(for: Self.settleDelay)
             guard !Task.isCancelled else { return }
-            self?.settle()
+            await self?.settle()
         }
     }
 
     /// Moves back only windows in the record for the new displays that the app still
-    /// lists, and leaves every other window alone. Runs in one go, so no recording
-    /// pass reads the windows halfway through.
-    private func settle() {
+    /// lists, to their exact recorded frames (one spanning two screens stays so), and
+    /// leaves every other window alone. One app per main thread turn, like recording;
+    /// recording waits until it is done.
+    private func settle() async {
         let record = memory.settle(on: .active)
-        guard isEnabled, !record.isEmpty else { return }
-        let screens = NSScreen.axFrames.map(\.visible)
-        let excluded = ExcludedApps.stored
-        for (pid, frames) in record {
-            guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated,
-                  !excluded.contains(app.bundleIdentifier)
-            else { continue }
-            let element = AXUIElementCreateApplication(pid)
-            AXUIElementSetMessagingTimeout(element, AXUIElement.messagingTimeout)
-            // A window closed since it was recorded is no longer listed; it isn't asked.
-            for window in element.windows {
-                guard let frame = frames[window] else { continue }
-                AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
-                // The first unanswered message ends this app, so a hung app costs one timeout.
-                guard window.flag(kAXMinimizedAttribute) == false, window.flag(fullScreenAttribute) == false,
-                      let current = window.frame
-                else { break }
-                guard !WindowLayout.isClose(current, frame),
-                      let index = WindowLayout.screenIndex(for: frame, among: screens)
+        if isEnabled {
+            let excluded = ExcludedApps.stored
+            for (pid, frames) in record.prefix(Self.appLimit) {
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated,
+                      !excluded.contains(app.bundleIdentifier)
                 else { continue }
-                guard window.setFrame(frame, within: screens[index]) != nil else { break }
+                let element = AXUIElementCreateApplication(pid)
+                AXUIElementSetMessagingTimeout(element, AXUIElement.messagingTimeout)
+                // A window closed since it was recorded is no longer listed; it isn't asked.
+                for window in (element.windows ?? []).filter({ frames[$0] != nil }).prefix(Self.windowLimit) {
+                    guard let frame = frames[window] else { continue }
+                    AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
+                    // The first unanswered message ends this app, so a hung app costs one timeout.
+                    guard let minimized = window.flag(kAXMinimizedAttribute),
+                          let fullScreen = window.flag(fullScreenAttribute),
+                          let current = window.frame
+                    else { break }
+                    guard !minimized, !fullScreen, !WindowLayout.isClose(current, frame) else { continue }
+                    guard window.setFrame(frame, within: nil) != nil else { break }
+                }
             }
         }
+        memory.resume()
     }
 
     private func recordSoon() {
@@ -120,24 +124,26 @@ final class DisplayRestore {
             guard isEnabled, !memory.isSettling, !app.isTerminated else { continue }
             let element = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(element, AXUIElement.messagingTimeout)
+            guard let windows = element.windows else { continue }
             var frames: [AXUIElement: CGRect] = [:]
             var answered = true
-            for window in element.windows.prefix(Self.windowLimit) {
+            for window in windows.prefix(Self.windowLimit) {
                 AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
-                guard let minimized = window.flag(kAXMinimizedAttribute),
+                guard let subrole = window.string(kAXSubroleAttribute),
+                      let minimized = window.flag(kAXMinimizedAttribute),
                       let fullScreen = window.flag(fullScreenAttribute)
                 else {
                     answered = false
                     break
                 }
-                guard !minimized, !fullScreen, window.string(kAXSubroleAttribute) == kAXStandardWindowSubrole else { continue }
+                guard subrole == kAXStandardWindowSubrole, !minimized, !fullScreen else { continue }
                 guard let frame = window.frame else {
                     answered = false
                     break
                 }
                 frames[window] = frame
             }
-            // An app that stopped answering keeps what it had; a half list would drop windows.
+            // An app that stopped answering keeps what it had; a partial list would drop windows.
             if answered {
                 memory.record(frames, of: app.processIdentifier, in: .active)
             }

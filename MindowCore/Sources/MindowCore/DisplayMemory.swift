@@ -30,8 +30,9 @@ public struct DisplayConfiguration: Hashable, Sendable {
 /// didn't answer keeps what was recorded before.
 ///
 /// Recording only goes to the configuration in effect. From the moment the displays
-/// change until the new configuration settles, nothing is recorded: windows the system
-/// is shuffling around would otherwise overwrite the frames to restore.
+/// change until the windows are restored on the new configuration (`resume`), nothing
+/// is recorded: windows the system is shuffling around, or restoring is moving, would
+/// otherwise overwrite the frames to restore.
 public struct DisplayMemory<Owner: Hashable, Window: Hashable> {
     public private(set) var current: DisplayConfiguration
     public private(set) var isSettling = false
@@ -51,18 +52,22 @@ public struct DisplayMemory<Owner: Hashable, Window: Hashable> {
         return true
     }
 
-    /// The displays changed: stop recording until `settle`.
+    /// The displays changed: stop recording until `resume`.
     public mutating func displaysChanged() {
         isSettling = true
     }
 
-    /// The displays stopped changing on `configuration`: it becomes current, recording
-    /// resumes, and the frames remembered for it come back to restore (empty for a
-    /// configuration not seen before).
+    /// The displays stopped changing on `configuration`: it becomes current, and the
+    /// frames remembered for it come back to restore (empty for a configuration not seen
+    /// before). Recording stays stopped until `resume`, after the restore.
     public mutating func settle(on configuration: DisplayConfiguration) -> [Owner: [Window: CGRect]] {
         current = configuration
-        isSettling = false
         return frames[configuration] ?? [:]
+    }
+
+    /// The restore is done; record again, on `current`.
+    public mutating func resume() {
+        isSettling = false
     }
 
     /// Drops an owner's windows from every configuration, for an app that quit.
