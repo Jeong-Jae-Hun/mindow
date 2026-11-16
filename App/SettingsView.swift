@@ -26,6 +26,7 @@ struct SettingsView: View {
     @AppStorage(Preferences.cycleOnRepeat) private var cycleOnRepeat = true
     @AppStorage(Preferences.showMenuBarIcon) private var showMenuBarIcon = true
     @AppStorage(Preferences.gap) private var gap = 0.0
+    @AppStorage(Preferences.dragSnap) private var dragSnap = true
     @State private var trusted = AXIsProcessTrusted()
     @State private var spectacleRunning = SpectacleShortcuts.isSpectacleRunning
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -69,6 +70,11 @@ struct SettingsView: View {
                         Slider(value: $gap, in: 0...32, step: 2)
                         Text("\(Int(gap)) pt").monospacedDigit().frame(width: 44, alignment: .trailing)
                     }
+                }
+                Toggle("Snap windows by dragging to screen edges", isOn: $dragSnap)
+                if dragSnap {
+                    Text("Left and right edges take half the screen, the top edge all of it, corners a quarter. Turn off \"Drag windows to screen edges to tile\" in System Settings > Desktop & Dock so macOS doesn't tile them too.")
+                        .foregroundStyle(.secondary).font(.caption)
                 }
                 Toggle("Show icon in menu bar", isOn: $showMenuBarIcon)
                 Toggle("Launch at login", isOn: $launchAtLogin)

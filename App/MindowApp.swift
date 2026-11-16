@@ -58,7 +58,10 @@ enum Preferences {
     static let cycleOnRepeat = "mindow.cycleOnRepeat"
     /// Points between tiled windows and around them; 0 (unset) keeps v0.1.1's frames.
     static let gap = "mindow.gap"
+    static var gapValue: CGFloat { CGFloat(UserDefaults.standard.double(forKey: gap)) }
     static let importedFromSpectacleAt = "mindow.importedFromSpectacleAt"
     /// Bundle IDs; window action shortcuts are off while one of these apps is in front.
     static let excludedApps = "mindow.excludedApps"
+    /// Dragging a window to a screen edge places it there.
+    static let dragSnap = "mindow.dragSnap"
 }

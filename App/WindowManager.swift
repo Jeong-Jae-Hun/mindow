@@ -58,14 +58,9 @@ final class WindowManager {
             return
         }
         let window = unsafeDowncast(focused, to: AXUIElement.self)
-        guard let current = window.frame, let primaryHeight = NSScreen.screens.first?.frame.height else { return }
+        let screens = NSScreen.axFrames.map(\.visible)
+        guard let current = window.frame, let index = WindowLayout.screenIndex(for: current, among: screens) else { return }
 
-        // Visible frames (without menu bar and Dock), left to right so Next/Previous
-        // Display walk the physical arrangement.
-        let screens = NSScreen.screens
-            .map { ScreenGeometry.flipped($0.visibleFrame, primaryScreenHeight: primaryHeight) }
-            .sorted { ($0.minX, $0.minY) < ($1.minX, $1.minY) }
-        guard let index = WindowLayout.screenIndex(for: current, among: screens) else { return }
         let screen = screens[index]
 
         // A cycle continues only on the same window with nothing else in between.
@@ -98,7 +93,7 @@ final class WindowManager {
             // The toggle covers size cycling; thirds and fourths always walk their cells.
             let remembered = action.cellGrid != nil || UserDefaults.standard.bool(forKey: Preferences.cycleOnRepeat)
             let previous = remembered ? cycle.previousStep(for: action, current: current) : nil
-            let gap = CGFloat(UserDefaults.standard.double(forKey: Preferences.gap))
+            let gap = Preferences.gapValue
             let context = WindowLayout.Context(window: current, screen: screen, previousStep: previous, gap: gap)
             guard let target = WindowLayout.placement(for: action, in: context) else { return }
             // Fullscreen again on a window Mindow maximized goes back to the frame it had.
@@ -119,9 +114,80 @@ final class WindowManager {
             cycle.record(action, placement: .init(frame: applied, step: target.step))
         }
     }
+
+    /// Places a window dropped by drag snap, found by its owner and its frame at the
+    /// drop. It goes on the screen under the cursor (`target.screen` indexes
+    /// `NSScreen.axFrames`), not the one holding most of the window. Like a first press
+    /// of the shortcut: step 0, recorded for undo, and the next press continues the
+    /// cycle. Fullscreen never restores the remembered frame here, because a window
+    /// dragged along the top edge can drop where it already filled the screen.
+    func snap(_ target: SnapZone.Target, window dropped: (pid: pid_t, frame: CGRect, byCommand: Bool)) {
+        let screens = NSScreen.axFrames.map(\.visible)
+        guard AXIsProcessTrusted(), screens.indices.contains(target.screen) else { return }
+
+        // Find the dropped window among its app's windows by frame. Every message waits
+        // at most `messagingTimeout`, and the search stops at the first one left
+        // unanswered, so an app that hangs midway costs one more timeout, not one per window.
+        let app = AXUIElementCreateApplication(dropped.pid)
+        AXUIElementSetMessagingTimeout(app, AXUIElement.messagingTimeout)
+        var all: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &all) == .success,
+              let windows = all as? [AXUIElement]
+        else { return }
+        var matches: [AXUIElement] = []
+        for window in windows {
+            AXUIElementSetMessagingTimeout(window, AXUIElement.messagingTimeout)
+            guard let frame = window.frame else { return }
+            if WindowLayout.isClose(frame, dropped.frame) { matches.append(window) }
+        }
+        // Two windows of one app on the same frame: only the focused one can be told
+        // apart, and only when it is the one dragged. Command drags a window without
+        // focusing it, so then neither is touched.
+        var focused: CFTypeRef?
+        if matches.count > 1, !dropped.byCommand,
+           AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &focused) == .success,
+           let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() {
+            let window = unsafeDowncast(focused, to: AXUIElement.self)
+            matches = matches.contains(window) ? [window] : []
+        }
+        guard matches.count == 1, let window = matches.first, let current = window.frame else { return }
+        let screen = screens[target.screen]
+        let gap = Preferences.gapValue
+        let context = WindowLayout.Context(window: current, screen: screen, previousStep: nil, gap: gap)
+        guard let placement = WindowLayout.placement(for: target.action, in: context),
+              let applied = window.setFrame(placement.frame, within: screen)
+        else { return }
+        if didMove(applied, from: current) {
+            history.record(current, for: window)
+            if target.action == .moveToFullscreen {
+                maximized.remember(current, for: window)
+            }
+        }
+        cycle = RepeatCycle()
+        cycleWindow = window
+        cycle.record(target.action, placement: .init(frame: applied, step: placement.step))
+    }
+}
+
+// ─── Screens ───
+
+extension NSScreen {
+    /// Every screen's frame and visible frame (without menu bar and Dock) in AX
+    /// coordinates, left to right so Next/Previous Display walk the physical arrangement.
+    @MainActor static var axFrames: [(frame: CGRect, visible: CGRect)] {
+        guard let primaryHeight = screens.first?.frame.height else { return [] }
+        return screens
+            .map { (ScreenGeometry.flipped($0.frame, primaryScreenHeight: primaryHeight),
+                    ScreenGeometry.flipped($0.visibleFrame, primaryScreenHeight: primaryHeight)) }
+            .sorted { ($0.visible.minX, $0.visible.minY) < ($1.visible.minX, $1.visible.minY) }
+    }
 }
 
 private extension AXUIElement {
+    /// Upper bound per AX message, so an app that stopped responding can't hold the
+    /// main thread for the system's default six seconds.
+    static let messagingTimeout: Float = 0.25
+
     var frame: CGRect? {
         guard let origin = value(positionAttribute), let size = value(sizeAttribute) else { return nil }
         return CGRect(origin: origin, size: size)
@@ -131,14 +197,18 @@ private extension AXUIElement {
     /// display) and reads the frame back. Apps with a minimum size may keep a larger
     /// one, so the result is shifted back on screen. Returns the frame the window
     /// actually has, or nil when it cannot be read.
+    ///
+    /// A write the app never answered (`.cannotComplete`, also what a messaging timeout
+    /// gives) stops it: every further message would wait just as long on the main thread.
     func setFrame(_ target: CGRect, within screen: CGRect) -> CGRect? {
-        set(sizeAttribute, to: target.size)
-        set(positionAttribute, to: target.origin)
-        set(sizeAttribute, to: target.size)
-        guard let applied = frame else { return nil }
+        guard set(sizeAttribute, to: target.size) != .cannotComplete,
+              set(positionAttribute, to: target.origin) != .cannotComplete,
+              set(sizeAttribute, to: target.size) != .cannotComplete,
+              let applied = frame
+        else { return nil }
         let fitted = WindowLayout.fitInside(applied, screen: screen)
         guard fitted.origin != applied.origin else { return applied }
-        set(positionAttribute, to: fitted.origin)
+        guard set(positionAttribute, to: fitted.origin) != .cannotComplete else { return nil }
         return frame
     }
 
@@ -155,10 +225,9 @@ private extension AXUIElement {
         }
     }
 
-    @discardableResult
-    func set<Value>(_ attribute: AXAttribute<Value>, to value: Value) -> Bool {
+    func set<Value>(_ attribute: AXAttribute<Value>, to value: Value) -> AXError {
         var value = value
-        guard let axValue = AXValueCreate(attribute.type, &value) else { return false }
-        return AXUIElementSetAttributeValue(self, attribute.name as CFString, axValue) == .success
+        guard let axValue = AXValueCreate(attribute.type, &value) else { return .illegalArgument }
+        return AXUIElementSetAttributeValue(self, attribute.name as CFString, axValue)
     }
 }

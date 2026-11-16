@@ -5,13 +5,16 @@ import MindowCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let settings = SettingsWindowController()
     let windows = WindowManager()
+    private var dragSnap: DragSnap?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [
             Preferences.showMenuBarIcon: true,
             Preferences.cycleOnRepeat: true,
+            Preferences.dragSnap: true,
         ])
         Shortcuts.register { [windows] action in windows.perform(action) }
+        dragSnap = DragSnap(windows: windows)
         if !AXIsProcessTrusted() || SpectacleShortcuts.isSpectacleRunning {
             settings.show()
         }
