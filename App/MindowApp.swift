@@ -44,6 +44,9 @@ struct MindowApp: App {
             Toggle("Pause Shortcuts", isOn: pausedBinding)
                 .globalKeyboardShortcut(Shortcuts.togglePause)
             Divider()
+            if let release = appDelegate.updates.available {
+                Button("Update to v\(release.version.description)…") { NSWorkspace.shared.open(release.url) }
+            }
             Button("Settings…") { appDelegate.settings.show() }
                 .keyboardShortcut(",")
             Divider()
@@ -64,4 +67,7 @@ enum Preferences {
     static let excludedApps = "mindow.excludedApps"
     /// Dragging a window to a screen edge places it there.
     static let dragSnap = "mindow.dragSnap"
+    /// Per Mac, like the menu bar icon: a settings export leaves both out.
+    static let checkForUpdates = "mindow.checkForUpdates"
+    static let lastUpdateCheck = "mindow.lastUpdateCheck"
 }

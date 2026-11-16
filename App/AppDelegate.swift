@@ -3,8 +3,9 @@ import MindowCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let settings = SettingsWindowController()
     let windows = WindowManager()
+    let updates = UpdateChecker()
+    lazy var settings = SettingsWindowController(updates: updates)
     private var dragSnap: DragSnap?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -12,9 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Preferences.showMenuBarIcon: true,
             Preferences.cycleOnRepeat: true,
             Preferences.dragSnap: true,
+            Preferences.checkForUpdates: true,
         ])
         Shortcuts.register { [windows] action in windows.perform(action) }
         dragSnap = DragSnap(windows: windows)
+        updates.start()
         if !AXIsProcessTrusted() || SpectacleShortcuts.isSpectacleRunning {
             settings.show()
         }
